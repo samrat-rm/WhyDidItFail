@@ -4,13 +4,10 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""
-Whydiditfail Environment Implementation.
+"""WhyDidItFail Environment Implementation."""
 
-A simple test environment that echoes back messages sent to it.
-Perfect for testing HTTP server infrastructure.
-"""
-
+import random
+from typing import Any, Optional
 from uuid import uuid4
 
 from openenv.core.env_server.interfaces import Environment
@@ -18,87 +15,97 @@ from openenv.core.env_server.types import State
 
 try:
     from ..models import WhyDidItFailAction, WhyDidItFailObservation
+    from ..server.scenarios import SCENARIOS
 except ImportError:
     from models import WhyDidItFailAction, WhyDidItFailObservation
+    from server.scenarios import SCENARIOS
 
 
-class WhydiditfailEnvironment(Environment):
-    """
-    A simple echo environment that echoes back messages.
+class WhyDidItFailEnvironment(Environment):
+    """Diagnostic environment where the agent investigates a failed training run."""
 
-    This environment is designed for testing the HTTP server infrastructure.
-    It maintains minimal state and simply echoes back whatever message it receives.
-
-    Example:
-        >>> env = WhydiditfailEnvironment()
-        >>> obs = env.reset()
-        >>> print(obs.echoed_message)  # "Whydiditfail environment ready!"
-        >>>
-        >>> obs = env.step(WhyDidItFailAction(message="Hello"))
-        >>> print(obs.echoed_message)  # "Hello"
-        >>> print(obs.message_length)  # 5
-    """
-
-    # Enable concurrent WebSocket sessions.
-    # Set to True if your environment isolates state between instances.
-    # When True, multiple WebSocket clients can connect simultaneously, each
-    # getting their own environment instance (when using factory mode in app.py).
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self):
-        """Initialize the WhyDidItFail environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
-        self._reset_count = 0
+        self.scenario = None
+        self.inspected = set()   # tracks what the agent has already looked at
 
-    def reset(self) -> WhyDidItFailObservation:
-        """
-        Reset the environment.
-
-        Returns:
-            WhyDidItFailObservation with a ready message
-        """
+    def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, **kwargs: Any) -> WhyDidItFailObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
-        self._reset_count += 1
-
+        self.scenario = random.choice(list(SCENARIOS.values()))
+        self.inspected = set()
         return WhyDidItFailObservation(
-            echoed_message="Whydiditfail environment ready!",
-            message_length=0,
-            done=False,
-            reward=0.0,
+            task_description="A training run has failed. Diagnose the problem.",
+            visible_data={"hint": "Use inspect_logs or inspect_config to begin."},
+            available_actions=["inspect_logs","inspect_config",
+                               "inspect_gradients","submit_diagnosis"],
+            steps_taken=0, reward=0.0, done=False,
+            feedback="Investigation started."
         )
 
-    def step(self, action: WhyDidItFailAction) -> WhyDidItFailObservation:  # type: ignore[override]
-        """
-        Execute a step in the environment by echoing the message.
-
-        Args:
-            action: WhyDidItFailAction containing the message to echo
-
-        Returns:
-            WhyDidItFailObservation with the echoed message and its length
-        """
+    def step(self, action: WhyDidItFailAction, timeout_s: Optional[float] = None, **kwargs: Any) -> WhyDidItFailObservation:
+        if self.scenario is None:
+            raise RuntimeError("Environment must be reset before calling step.")
         self._state.step_count += 1
 
-        message = action.message
-        length = len(message)
+        if action.action_type == "inspect_logs":
+            self.inspected.add("logs")
+            visible = {"training_logs": self.scenario["logs"]}
+            feedback = "You examined the training logs."
 
-        # Simple reward: longer messages get higher rewards
-        reward = length * 0.1
+        elif action.action_type == "inspect_config":
+            self.inspected.add("config")
+            visible = {"config": self.scenario["config"]}
+            feedback = "You examined the hyperparameter config."
+
+        elif action.action_type == "inspect_gradients":
+            self.inspected.add("gradients")
+            visible = {"gradient_norms": self.scenario["gradient_norms"]}
+            feedback = "You examined gradient statistics."
+
+        elif action.action_type == "submit_diagnosis":
+            reward, feedback, done = self.grade(action)
+            return WhyDidItFailObservation(
+                task_description="Diagnosis submitted.",
+                visible_data={}, available_actions=[],
+                steps_taken=self._state.step_count,
+                reward=reward, done=True, feedback=feedback
+            )
+
+        else:
+            visible = {}
+            feedback = f"Unknown action '{action.action_type}'."
 
         return WhyDidItFailObservation(
-            echoed_message=message,
-            message_length=length,
-            done=False,
-            reward=reward,
-            metadata={"original_message": message, "step": self._state.step_count},
+            task_description="Continue your investigation.",
+            visible_data=visible,
+            available_actions=["inspect_logs","inspect_config",
+                               "inspect_gradients","submit_diagnosis"],
+            steps_taken=self._state.step_count,
+            reward=0.0, done=False, feedback=feedback
         )
 
-    @property
-    def state(self) -> State:
-        """
-        Get the current environment state.
+    def grade(self, action: WhyDidItFailAction) -> tuple[float, str, bool]:
+        """Score a submit_diagnosis action against the current scenario."""
+        if self.scenario is None:
+            raise RuntimeError("Environment must be reset before calling grade.")
+        diagnosis = (action.diagnosis or "").strip().lower()
+        correct_diagnosis = self.scenario["correct_diagnosis"].strip().lower()
+        correct_fix = (self.scenario.get("correct_fix") or "").strip().lower()
+        suggested_fix = (action.suggested_fix or "").strip().lower()
 
-        Returns:
-            Current State with episode_id and step_count
-        """
-        return self._state
+        diagnosis_correct = diagnosis == correct_diagnosis
+        fix_correct = suggested_fix == correct_fix if correct_fix else True
+
+        if diagnosis_correct and fix_correct:
+            reward = 1.0
+            feedback = "Correct diagnosis and fix!"
+        elif diagnosis_correct:
+            reward = 0.5
+            feedback = f"Correct diagnosis, but the suggested fix was wrong. Expected: '{self.scenario.get('correct_fix')}'."
+        else:
+            reward = 0.0
+            feedback = f"Incorrect diagnosis. The actual failure mode was '{self.scenario['correct_diagnosis']}'."
+
+        return reward, feedback, True
