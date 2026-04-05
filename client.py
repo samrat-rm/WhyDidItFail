@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Whydiditfail Environment Client."""
+"""WhyDidItFail Environment Client."""
 
 from typing import Dict
 
@@ -12,71 +12,49 @@ from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 
-from .models import WhyDidItFailAction, WhyDidItFailObservation
+from models import WhyDidItFailAction, WhyDidItFailObservation
 
 
-class WhydiditfailEnv(
-    EnvClient[WhyDidItFailAction, WhyDidItFailObservation, State]
-):
+class WhyDidItFailEnv(EnvClient[WhyDidItFailAction, WhyDidItFailObservation, State]):
     """
-    Client for the Whydiditfail Environment.
+    Client for the WhyDidItFail Environment.
 
-    This client maintains a persistent WebSocket connection to the environment server,
-    enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
+    Maintains a persistent WebSocket connection to the environment server.
+    Each instance has its own dedicated session.
 
     Example:
-        >>> # Connect to a running server
-        >>> with WhydiditfailEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
+        >>> with WhyDidItFailEnv(base_url="http://localhost:8000") as env:
+        ...     result = env.reset()
+        ...     print(result.observation.task_description)
         ...
-        ...     result = client.step(WhyDidItFailAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-
-    Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = WhydiditfailEnv.from_docker_image("WhyDidItFail-env:latest")
-        >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(WhyDidItFailAction(message="Test"))
-        ... finally:
-        ...     client.close()
+        ...     action = WhyDidItFailAction(action_type="inspect_logs")
+        ...     result = env.step(action)
+        ...     print(result.observation.visible_data)
+        ...
+        ...     action = WhyDidItFailAction(
+        ...         action_type="submit_diagnosis",
+        ...         diagnosis="exploding gradients"
+        ...     )
+        ...     result = env.step(action)
+        ...     print(result.observation.feedback, result.reward)
     """
 
     def _step_payload(self, action: WhyDidItFailAction) -> Dict:
-        """
-        Convert WhyDidItFailAction to JSON payload for step message.
-
-        Args:
-            action: WhyDidItFailAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
-        """
-        return {
-            "message": action.message,
-        }
+        """Convert WhyDidItFailAction to JSON payload."""
+        return action.model_dump(exclude_none=True)
 
     def _parse_result(self, payload: Dict) -> StepResult[WhyDidItFailObservation]:
-        """
-        Parse server response into StepResult[WhyDidItFailObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with WhyDidItFailObservation
-        """
+        """Parse server response into StepResult[WhyDidItFailObservation]."""
         obs_data = payload.get("observation", {})
         observation = WhyDidItFailObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            task_description=obs_data.get("task_description", ""),
+            visible_data=obs_data.get("visible_data", {}),
+            available_actions=obs_data.get("available_actions", []),
+            steps_taken=obs_data.get("steps_taken", 0),
+            reward=obs_data.get("reward", 0.0),
+            done=obs_data.get("done", False),
+            feedback=obs_data.get("feedback", ""),
         )
-
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
@@ -84,15 +62,7 @@ class WhydiditfailEnv(
         )
 
     def _parse_state(self, payload: Dict) -> State:
-        """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from state request
-
-        Returns:
-            State object with episode_id and step_count
-        """
+        """Parse server response into State."""
         return State(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
