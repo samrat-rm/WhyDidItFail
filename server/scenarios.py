@@ -18,6 +18,7 @@ SCENARIOS = {
         "gradient_norms": None,   # not visible until agent requests it
         "correct_diagnosis": "exploding_gradients",
         "correct_fix": "reduce learning_rate to 0.001",
+        "requires_fix": False,   # set True on hard scenarios where fix must be graded
     }
 }
 # TODO : Add more scenarios
