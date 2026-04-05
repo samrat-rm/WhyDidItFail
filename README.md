@@ -20,7 +20,7 @@ A simple test environment that echoes back messages. Perfect for testing the env
 The simplest way to use the Whydiditfail environment is through the `WhydiditfailEnv` class:
 
 ```python
-from WhyDidItFail import WhydiditfailAction, WhydiditfailEnv
+from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
 
 try:
     # Create environment from Docker image
@@ -34,7 +34,7 @@ try:
     messages = ["Hello, World!", "Testing echo", "Final message"]
 
     for msg in messages:
-        result = WhyDidItFailenv.step(WhydiditfailAction(message=msg))
+        result = WhyDidItFailenv.step(WhyDidItFailAction(message=msg))
         print(f"Sent: '{msg}'")
         print(f"  → Echoed: '{result.observation.echoed_message}'")
         print(f"  → Length: {result.observation.message_length}")
@@ -119,11 +119,11 @@ The deployed space includes:
 ## Environment Details
 
 ### Action
-**WhydiditfailAction**: Contains a single field
+**WhyDidItFailAction**: Contains a single field
 - `message` (str) - The message to echo back
 
 ### Observation
-**WhydiditfailObservation**: Contains the echo response and metadata
+**WhyDidItFailObservation**: Contains the echo response and metadata
 - `echoed_message` (str) - The message echoed back
 - `message_length` (int) - Length of the message
 - `reward` (float) - Reward based on message length (length × 0.1)
@@ -150,7 +150,7 @@ WhyDidItFailenv = WhydiditfailEnv(base_url="<ENV_HTTP_URL_HERE>")
 
 # Use as normal
 result = WhyDidItFailenv.reset()
-result = WhyDidItFailenv.step(WhydiditfailAction(message="Hello!"))
+result = WhyDidItFailenv.step(WhyDidItFailAction(message="Hello!"))
 ```
 
 Note: When connecting to an existing server, `WhyDidItFailenv.close()` will NOT stop the server.
@@ -160,7 +160,7 @@ Note: When connecting to an existing server, `WhyDidItFailenv.close()` will NOT 
 The client supports context manager usage for automatic connection management:
 
 ```python
-from WhyDidItFail import WhydiditfailAction, WhydiditfailEnv
+from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
 
 # Connect with context manager (auto-connects and closes)
 with WhydiditfailEnv(base_url="http://localhost:8000") as env:
@@ -168,7 +168,7 @@ with WhydiditfailEnv(base_url="http://localhost:8000") as env:
     print(f"Reset: {result.observation.echoed_message}")
     # Multiple steps with low latency
     for msg in ["Hello", "World", "!"]:
-        result = env.step(WhydiditfailAction(message=msg))
+        result = env.step(WhyDidItFailAction(message=msg))
         print(f"Echoed: {result.observation.echoed_message}")
 ```
 
@@ -186,8 +186,8 @@ modify `server/app.py` to use factory mode:
 # In server/app.py - use factory mode for concurrent sessions
 app = create_app(
     WhydiditfailEnvironment,  # Pass class, not instance
-    WhydiditfailAction,
-    WhydiditfailObservation,
+    WhyDidItFailAction,
+    WhyDidItFailObservation,
     max_concurrent_envs=4,  # Allow 4 concurrent sessions
 )
 ```
@@ -195,14 +195,14 @@ app = create_app(
 Then multiple clients can connect simultaneously:
 
 ```python
-from WhyDidItFail import WhydiditfailAction, WhydiditfailEnv
+from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
 from concurrent.futures import ThreadPoolExecutor
 
 def run_episode(client_id: int):
     with WhydiditfailEnv(base_url="http://localhost:8000") as env:
         result = env.reset()
         for i in range(10):
-            result = env.step(WhydiditfailAction(message=f"Client {client_id}, step {i}"))
+            result = env.step(WhyDidItFailAction(message=f"Client {client_id}, step {i}"))
         return client_id, result.observation.message_length
 
 # Run 4 episodes concurrently

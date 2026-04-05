@@ -17,9 +17,9 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 try:
-    from ..models import WhydiditfailAction, WhydiditfailObservation
+    from ..models import WhyDidItFailAction, WhyDidItFailObservation
 except ImportError:
-    from models import WhydiditfailAction, WhydiditfailObservation
+    from models import WhyDidItFailAction, WhyDidItFailObservation
 
 
 class WhydiditfailEnvironment(Environment):
@@ -34,7 +34,7 @@ class WhydiditfailEnvironment(Environment):
         >>> obs = env.reset()
         >>> print(obs.echoed_message)  # "Whydiditfail environment ready!"
         >>>
-        >>> obs = env.step(WhydiditfailAction(message="Hello"))
+        >>> obs = env.step(WhyDidItFailAction(message="Hello"))
         >>> print(obs.echoed_message)  # "Hello"
         >>> print(obs.message_length)  # 5
     """
@@ -50,32 +50,32 @@ class WhydiditfailEnvironment(Environment):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
 
-    def reset(self) -> WhydiditfailObservation:
+    def reset(self) -> WhyDidItFailObservation:
         """
         Reset the environment.
 
         Returns:
-            WhydiditfailObservation with a ready message
+            WhyDidItFailObservation with a ready message
         """
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count += 1
 
-        return WhydiditfailObservation(
+        return WhyDidItFailObservation(
             echoed_message="Whydiditfail environment ready!",
             message_length=0,
             done=False,
             reward=0.0,
         )
 
-    def step(self, action: WhydiditfailAction) -> WhydiditfailObservation:  # type: ignore[override]
+    def step(self, action: WhyDidItFailAction) -> WhyDidItFailObservation:  # type: ignore[override]
         """
         Execute a step in the environment by echoing the message.
 
         Args:
-            action: WhydiditfailAction containing the message to echo
+            action: WhyDidItFailAction containing the message to echo
 
         Returns:
-            WhydiditfailObservation with the echoed message and its length
+            WhyDidItFailObservation with the echoed message and its length
         """
         self._state.step_count += 1
 
@@ -85,7 +85,7 @@ class WhydiditfailEnvironment(Environment):
         # Simple reward: longer messages get higher rewards
         reward = length * 0.1
 
-        return WhydiditfailObservation(
+        return WhyDidItFailObservation(
             echoed_message=message,
             message_length=length,
             done=False,

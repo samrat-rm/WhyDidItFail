@@ -53,7 +53,7 @@ load_dotenv()
 from openai import OpenAI
 
 from WhyDidItFail.client import WhydiditfailEnv
-from WhyDidItFail.models import WhydiditfailAction
+from WhyDidItFail.models import WhyDidItFailAction
 IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
@@ -157,7 +157,7 @@ async def main() -> None:
 
             message = get_model_message(client, step, last_echoed, last_reward, history)
 
-            result = await env.step(WhydiditfailAction(message=message))
+            result = await env.step(WhyDidItFailAction(message=message))
             obs = result.observation
 
             reward = result.reward or 0.0
