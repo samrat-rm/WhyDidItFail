@@ -29,10 +29,12 @@ class WhyDidItFailEnvironment(Environment):
     def __init__(self):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self.scenario = None
-        self.inspected = set()   # tracks what the agent has already looked at
+        self.inspected = set()   # tracks what the agent has already looked at  TODO : implement inspected logic 
 
     def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, **kwargs: Any) -> WhyDidItFailObservation:
-        self._state = State(episode_id=str(uuid4()), step_count=0)
+        if seed is not None:
+            random.seed(seed)
+        self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
         self.scenario = random.choice(list(SCENARIOS.values()))
         self.inspected = set()
         return WhyDidItFailObservation(
@@ -106,10 +108,11 @@ class WhyDidItFailEnvironment(Environment):
             if w not in _STOP_WORDS and len(w) > 1
         ]
         return all(kw in submitted_norm for kw in keywords)
-    # TODO : Partial credit scoreing, Configurable keyword aliases per scenario, False positive Gaurd,  
+    # TODO : Improve scoring : Partial credit scoreing, Configurable keyword aliases per scenario, False positive Gaurd,  
 
     def grade(self, action: WhyDidItFailAction) -> tuple[float, str, bool]:
         """Score a submit_diagnosis action against the current scenario."""
+        # TODO : use step count in reward calc
         if self.scenario is None:
             raise RuntimeError("Environment must be reset before calling grade.")
         diagnosis = (action.diagnosis or "").strip().lower()
