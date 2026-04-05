@@ -13,13 +13,9 @@ from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-try:
-    from ..models import WhyDidItFailAction, WhyDidItFailObservation
-    from ..server.scenarios import SCENARIOS
-except ImportError:
-    from models import WhyDidItFailAction, WhyDidItFailObservation
-    from server.scenarios import SCENARIOS
-
+from models import WhyDidItFailAction, WhyDidItFailObservation
+from server.scenarios import SCENARIOS
+from server.graders import grade_easy
 
 class WhyDidItFailEnvironment(Environment):
     """Diagnostic environment where the agent investigates a failed training run."""
