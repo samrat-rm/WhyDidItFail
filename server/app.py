@@ -36,18 +36,18 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 try:
-    from ..models import WhydiditfailAction, WhydiditfailObservation
+    from ..models import WhyDidItFailAction, WhyDidItFailObservation
     from .WhyDidItFail_environment import WhydiditfailEnvironment
 except ImportError:
-    from models import WhydiditfailAction, WhydiditfailObservation
+    from models import WhyDidItFailAction, WhyDidItFailObservation
     from server.WhyDidItFail_environment import WhydiditfailEnvironment
 
 
 # Create the app with web interface and README integration
 app = create_app(
     WhydiditfailEnvironment,
-    WhydiditfailAction,
-    WhydiditfailObservation,
+    WhyDidItFailAction,
+    WhyDidItFailObservation,
     env_name="WhyDidItFail",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )

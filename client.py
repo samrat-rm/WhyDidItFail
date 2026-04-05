@@ -12,11 +12,11 @@ from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 
-from .models import WhydiditfailAction, WhydiditfailObservation
+from .models import WhyDidItFailAction, WhyDidItFailObservation
 
 
 class WhydiditfailEnv(
-    EnvClient[WhydiditfailAction, WhydiditfailObservation, State]
+    EnvClient[WhyDidItFailAction, WhyDidItFailObservation, State]
 ):
     """
     Client for the Whydiditfail Environment.
@@ -31,7 +31,7 @@ class WhydiditfailEnv(
         ...     result = client.reset()
         ...     print(result.observation.echoed_message)
         ...
-        ...     result = client.step(WhydiditfailAction(message="Hello!"))
+        ...     result = client.step(WhyDidItFailAction(message="Hello!"))
         ...     print(result.observation.echoed_message)
 
     Example with Docker:
@@ -39,17 +39,17 @@ class WhydiditfailEnv(
         >>> client = WhydiditfailEnv.from_docker_image("WhyDidItFail-env:latest")
         >>> try:
         ...     result = client.reset()
-        ...     result = client.step(WhydiditfailAction(message="Test"))
+        ...     result = client.step(WhyDidItFailAction(message="Test"))
         ... finally:
         ...     client.close()
     """
 
-    def _step_payload(self, action: WhydiditfailAction) -> Dict:
+    def _step_payload(self, action: WhyDidItFailAction) -> Dict:
         """
-        Convert WhydiditfailAction to JSON payload for step message.
+        Convert WhyDidItFailAction to JSON payload for step message.
 
         Args:
-            action: WhydiditfailAction instance
+            action: WhyDidItFailAction instance
 
         Returns:
             Dictionary representation suitable for JSON encoding
@@ -58,18 +58,18 @@ class WhydiditfailEnv(
             "message": action.message,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult[WhydiditfailObservation]:
+    def _parse_result(self, payload: Dict) -> StepResult[WhyDidItFailObservation]:
         """
-        Parse server response into StepResult[WhydiditfailObservation].
+        Parse server response into StepResult[WhyDidItFailObservation].
 
         Args:
             payload: JSON response data from server
 
         Returns:
-            StepResult with WhydiditfailObservation
+            StepResult with WhyDidItFailObservation
         """
         obs_data = payload.get("observation", {})
-        observation = WhydiditfailObservation(
+        observation = WhyDidItFailObservation(
             echoed_message=obs_data.get("echoed_message", ""),
             message_length=obs_data.get("message_length", 0),
             done=payload.get("done", False),

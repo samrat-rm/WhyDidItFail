@@ -7,10 +7,10 @@
 """Whydiditfail Environment."""
 
 from .client import WhydiditfailEnv
-from .models import WhydiditfailAction, WhydiditfailObservation
+from .models import WhyDidItFailAction, WhyDidItFailObservation
 
 __all__ = [
-    "WhydiditfailAction",
-    "WhydiditfailObservation",
+    "WhyDidItFailAction",
+    "WhyDidItFailObservation",
     "WhydiditfailEnv",
 ]
