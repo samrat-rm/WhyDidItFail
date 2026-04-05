@@ -7,7 +7,7 @@
 """
 FastAPI application for the Whydiditfail Environment.
 
-This module creates an HTTP server that exposes the WhydiditfailEnvironment
+This module creates an HTTP server that exposes the WhyDidItFailEnvironment
 over HTTP and WebSocket endpoints, compatible with EnvClient.
 
 Endpoints:
@@ -37,15 +37,15 @@ except Exception as e:  # pragma: no cover
 
 try:
     from ..models import WhyDidItFailAction, WhyDidItFailObservation
-    from .WhyDidItFail_environment import WhydiditfailEnvironment
+    from .WhyDidItFail_environment import WhyDidItFailEnvironment
 except ImportError:
     from models import WhyDidItFailAction, WhyDidItFailObservation
-    from server.WhyDidItFail_environment import WhydiditfailEnvironment
+    from server.WhyDidItFail_environment import WhyDidItFailEnvironment
 
 
 # Create the app with web interface and README integration
 app = create_app(
-    WhydiditfailEnvironment,
+    WhyDidItFailEnvironment,
     WhyDidItFailAction,
     WhyDidItFailObservation,
     env_name="WhyDidItFail",

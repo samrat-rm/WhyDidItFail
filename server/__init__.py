@@ -6,6 +6,6 @@
 
 """Whydiditfail environment server components."""
 
-from .WhyDidItFail_environment import WhydiditfailEnvironment
+from .WhyDidItFail_environment import WhyDidItFailEnvironment
 
-__all__ = ["WhydiditfailEnvironment"]
+__all__ = ["WhyDidItFailEnvironment"]
