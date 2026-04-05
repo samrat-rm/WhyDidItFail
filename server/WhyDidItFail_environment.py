@@ -86,6 +86,28 @@ class WhyDidItFailEnvironment(Environment):
             reward=0.0, done=False, feedback=feedback
         )
 
+    @staticmethod
+    def _keywords_match(submitted: str, expected: str) -> bool:
+        """Return True if all significant keywords from expected appear in submitted.
+
+        Both strings should already be lowercased. Underscores and hyphens are
+        treated as spaces so "exploding_gradients" matches "exploding gradients".
+        Common stop words ("to", "a", "the", …) are ignored during keyword
+        extraction so that filler differences don't cause false negatives.
+        """
+        _STOP_WORDS = {"to", "a", "the", "and", "or", "is", "are", "was", "an", "in", "of"}
+
+        def _normalize(s: str) -> str:
+            return s.replace("_", " ").replace("-", " ")
+
+        submitted_norm = _normalize(submitted)
+        keywords = [
+            w for w in _normalize(expected).split()
+            if w not in _STOP_WORDS and len(w) > 1
+        ]
+        return all(kw in submitted_norm for kw in keywords)
+    # TODO : Partial credit scoreing, Configurable keyword aliases per scenario, False positive Gaurd,  
+
     def grade(self, action: WhyDidItFailAction) -> tuple[float, str, bool]:
         """Score a submit_diagnosis action against the current scenario."""
         if self.scenario is None:
@@ -95,12 +117,20 @@ class WhyDidItFailEnvironment(Environment):
         correct_fix = (self.scenario.get("correct_fix") or "").strip().lower()
         suggested_fix = (action.suggested_fix or "").strip().lower()
 
-        diagnosis_correct = diagnosis == correct_diagnosis
-        fix_correct = suggested_fix == correct_fix if correct_fix else True
+        requires_fix: bool = self.scenario.get("requires_fix", False)
+
+        diagnosis_correct = self._keywords_match(diagnosis, correct_diagnosis)
+        if not requires_fix:
+            fix_correct = True  # fix not evaluated for this scenario
+        elif not correct_fix:
+            # Scenario marked requires_fix=True but forgot to set correct_fix — safe default.
+            fix_correct = False
+        else:
+            fix_correct = self._keywords_match(suggested_fix, correct_fix)
 
         if diagnosis_correct and fix_correct:
             reward = 1.0
-            feedback = "Correct diagnosis and fix!"
+            feedback = "Correct diagnosis and fix!" if requires_fix else "Correct diagnosis!"
         elif diagnosis_correct:
             reward = 0.5
             feedback = f"Correct diagnosis, but the suggested fix was wrong. Expected: '{self.scenario.get('correct_fix')}'."
