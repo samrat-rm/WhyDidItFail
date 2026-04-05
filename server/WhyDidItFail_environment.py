@@ -27,6 +27,10 @@ class WhyDidItFailEnvironment(Environment):
         self.scenario = None
         self.inspected = set()   # tracks what the agent has already looked at  TODO : implement inspected logic 
 
+    @property
+    def state(self) -> State:
+        return self._state
+
     def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, **kwargs: Any) -> WhyDidItFailObservation:
         if seed is not None:
             random.seed(seed)
