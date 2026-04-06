@@ -30,6 +30,7 @@ load_dotenv()
 from openai import OpenAI
 
 from client import WhyDidItFailEnv
+from llm_judge import judge as llm_judge
 from models import WhyDidItFailAction
 from server.scenarios import SCENARIOS
 
@@ -112,8 +113,8 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
     except Exception as exc:
         print(f"  [DEBUG] parse error: {exc}", flush=True)
         if step <= 2:
-            return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None)
-        return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None)
+            return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None,reasoning=None)
+        return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None,reasoning=None)
 
 # ── episode runner ────────────────────────────────────────────────────────────
 
@@ -133,7 +134,15 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
         obs      = result.observation
         reward   = result.reward or 0.0
         done     = result.done
-        act_str  = action.model_dump_json(exclude_none=True)
+        act_str  = action.model_dump_json(exclude_none=True, exclude_defaults=True)
+
+        if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
+            source = action.action_type.replace("inspect_", "")
+            if source not in inspection_order:
+                inspection_order.append(source)
+
+        if action.action_type == "submit_diagnosis":
+            submit_action = action  # judge runs after loop — WebSocket is closed by then
 
         rewards.append(reward)
         history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
@@ -142,8 +151,22 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
         if done:
             break
 
-    # Final score = reward on submit_diagnosis (last reward)
-    score   = rewards[-1] if rewards else 0.0
+    # WebSocket is closed — safe to call the judge now
+    keyword_score = rewards[-1] if rewards else 0.0
+    judge_score = 0.0
+    if submit_action is not None:
+        judge_score = llm_judge(
+            client=client,
+            model=MODEL_NAME,
+            diagnosis=submit_action.diagnosis or "",
+            reasoning=submit_action.reasoning,
+            suggested_fix=submit_action.suggested_fix,
+            scenario=SCENARIOS[scenario_key],
+            inspection_order=inspection_order,
+        )
+    score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
+    print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", flush=True)
+
     success = score >= SUCCESS_THRESHOLD
     return {"scenario_key": scenario_key, "score": score, "steps": len(rewards), "success": success}
 
