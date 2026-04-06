@@ -24,7 +24,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "exploding_gradients",
         "correct_fix": "reduce learning_rate to 0.001",
-        "requires_fix": False,
     },
 
     "learning_rate_too_high": {
@@ -46,7 +45,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "learning_rate_too_high",
         "correct_fix": "reduce learning_rate to 0.01",
-        "requires_fix": False,
     },
 
     "overfitting": {
@@ -68,7 +66,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "overfitting",
         "correct_fix": "add dropout=0.3 and weight_decay=0.01",
-        "requires_fix": False,
     },
 
     "underfitting": {
@@ -89,7 +86,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "underfitting",
         "correct_fix": "increase model capacity or use a deeper architecture",
-        "requires_fix": False,
     },
 
     # ─── MEDIUM — requires correlating logs + config ─────────────────────────
@@ -112,7 +108,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "learning_rate_too_low",
         "correct_fix": "increase learning_rate to 0.001",
-        "requires_fix": False,
     },
 
     "missing_regularization": {
@@ -133,7 +128,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "missing_regularization",
         "correct_fix": "add weight_decay=0.01 and dropout=0.3",
-        "requires_fix": False,
     },
 
     "batch_size_too_small": {
@@ -155,7 +149,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "batch_size_too_small",
         "correct_fix": "increase batch_size to at least 32",
-        "requires_fix": False,
     },
 
     "optimizer_misconfiguration": {
@@ -176,7 +169,6 @@ SCENARIOS: dict[str, dict] = {
         "gradient_norms": None,
         "correct_diagnosis": "optimizer_misconfiguration",
         "correct_fix": "set momentum=0.9 for SGD optimizer",
-        "requires_fix": False,
     },
 
     # ─── HARD — requires logs + config + gradients, fix must be provided ────
@@ -205,7 +197,6 @@ SCENARIOS: dict[str, dict] = {
         ],
         "correct_diagnosis": "vanishing_gradients",
         "correct_fix": "switch activation to relu and add batch normalization",
-        "requires_fix": True,
     },
 
     "dying_relu": {
@@ -232,7 +223,6 @@ SCENARIOS: dict[str, dict] = {
         ],
         "correct_diagnosis": "dying_relu",
         "correct_fix": "reduce learning_rate to 0.001 or switch to leaky_relu activation",
-        "requires_fix": True,
     },
 
     "bad_weight_initialization": {
@@ -255,7 +245,6 @@ SCENARIOS: dict[str, dict] = {
         ],
         "correct_diagnosis": "bad_weight_initialization",
         "correct_fix": "use kaiming or xavier weight initialization",
-        "requires_fix": True,
     },
 
     "lr_scheduler_misconfiguration": {
@@ -284,6 +273,5 @@ SCENARIOS: dict[str, dict] = {
         ],
         "correct_diagnosis": "lr_scheduler_misconfiguration",
         "correct_fix": "set gamma to 0.1 so the scheduler decreases lr instead of increasing it",
-        "requires_fix": True,
     },
 }

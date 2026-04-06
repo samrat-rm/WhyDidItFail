@@ -75,6 +75,36 @@ def _diagnosis_score(diagnosis: str, scenario: dict) -> float:
     return max(0.0, min(0.7, score))
 
 
+def _evidence_diagnosis_penalty(
+    diagnosis: str,
+    scenario: dict,
+    inspection_order: list[str],
+) -> float:
+    """
+    Penalises reasoning failure: the agent had evidence but drew the wrong conclusion.
+
+    All required sources inspected, wrong diagnosis:  −0.10  (clear reasoning failure)
+    Some required sources inspected, wrong diagnosis: −0.05  (partial reasoning failure)
+    No required sources inspected, wrong diagnosis:    0.00  (evidence_score handles this)
+    Correct diagnosis:                                 0.00  (no penalty)
+    """
+    correct = scenario.get("correct_diagnosis", "")
+    d = diagnosis.strip().lower()
+
+    is_correct = any(kw in d for kw in EXACT_KEYWORDS.get(correct, [correct]))
+    if is_correct:
+        return 0.0
+
+    required         = set(scenario.get("required_sources", ["logs"]))
+    inspected_req    = set(inspection_order) & required
+
+    if inspected_req == required:
+        return -0.10   # had everything, still wrong
+    if inspected_req:
+        return -0.05   # partial evidence, still wrong
+    return 0.0         # blind submission — evidence_score already penalises
+
+
 def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     """
     +0.08 per required source inspected  (max +0.24 for 3 sources)
@@ -101,15 +131,18 @@ def _efficiency_score(steps_taken: int, min_steps: int) -> float:
     return max(0.0, 0.15 - penalty)
 
 
-def _fix_bonus(suggested_fix: str | None, scenario: dict) -> float:
+def _fix_score(suggested_fix: str | None, scenario: dict) -> float:
     """
-    Bonus score for providing a correct fix. Never penalised for omitting.
-    0.15 — all significant keywords from correct_fix are present
-    0.08 — at least half the keywords match
-    0.00 — no fix or wrong fix
+    Uniform fix score applied to every scenario.
+
+      −0.05 — no fix provided          (always expected)
+       0.00 — fix provided but wrong
+      +0.05 — ≥30% keyword match
+      +0.10 — ≥60% keyword match
+      +0.15 — all keywords match
     """
     if not suggested_fix:
-        return 0.0
+        return -0.05   # fix is always expected; omitting it costs points
 
     fix         = suggested_fix.strip().lower()
     correct_fix = scenario.get("correct_fix", "").strip().lower()
@@ -119,9 +152,7 @@ def _fix_bonus(suggested_fix: str | None, scenario: dict) -> float:
     if not keywords:
         return 0.0
 
-    matched = sum(1 for kw in keywords if kw in fix)
-
-    ratio = matched / len(keywords)
+    ratio = sum(1 for kw in keywords if kw in fix) / len(keywords)
 
     if ratio == 1.0:
         return 0.15
@@ -177,12 +208,13 @@ def grade(
     required         = set(required_sources)                        # set for membership checks
     min_steps        = len(required) + 1   # inspect all required sources + submit
 
-    d_score = _diagnosis_score(diagnosis, scenario)
-    e_score = _evidence_score(inspection_order, required)
-    f_score = _efficiency_score(steps_taken, min_steps)
-    b_score = _fix_bonus(suggested_fix, scenario)
-    o_bonus = _ordering_bonus(inspection_order, required_sources)
+    d_score  = _diagnosis_score(diagnosis, scenario)
+    ed_penalty = _evidence_diagnosis_penalty(diagnosis, scenario, inspection_order)
+    e_score  = _evidence_score(inspection_order, required)
+    f_score  = _efficiency_score(steps_taken, min_steps)
+    b_score  = _fix_score(suggested_fix, scenario)
+    o_bonus  = _ordering_bonus(inspection_order, required_sources)
 
-    total = d_score + e_score + f_score + b_score + o_bonus
+    total = d_score + ed_penalty + e_score + f_score + b_score + o_bonus
 
     return round(max(0.0, min(1.0, total)), 4)
