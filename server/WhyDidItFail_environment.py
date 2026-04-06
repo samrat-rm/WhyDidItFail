@@ -27,6 +27,7 @@ class WhyDidItFailEnvironment(Environment):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self.scenario: dict | None = None
         self.inspection_order: list[str] = []  # first-visit order; doubles as membership check
+        self.max_steps: int = 0
 
     @property
     def state(self) -> State:
@@ -37,12 +38,17 @@ class WhyDidItFailEnvironment(Environment):
         self.inspection_order = []
 
         scenario_key = kwargs.get("scenario_key")
+
         if scenario_key and scenario_key in SCENARIOS:
             self.scenario = SCENARIOS[scenario_key]
         else:
             if seed is not None:
                 random.seed(seed)
             self.scenario = random.choice(list(SCENARIOS.values()))
+
+        required_sources = self.scenario.get("required_sources", ["logs"])
+        self.max_steps = len(required_sources) * 3 + 2
+
         return WhyDidItFailObservation(
             task_description=(
                 "A training run has failed. Diagnose the root cause.\n"
@@ -62,6 +68,21 @@ class WhyDidItFailEnvironment(Environment):
             raise RuntimeError("Environment must be reset before calling step.")
 
         self._state.step_count += 1
+
+        # Hard step limit — terminate immediately, grade() will return 0.0.
+        if self._state.step_count > self.max_steps and action.action_type != "submit_diagnosis":
+            return WhyDidItFailObservation(
+                task_description="Step limit reached. Episode terminated.",
+                visible_data={},
+                available_actions=[],
+                steps_taken=self._state.step_count,
+                reward=0.0,
+                done=True,
+                feedback=(
+                    f"Step limit ({self.max_steps}) reached without a diagnosis. "
+                    f"Score: 0.00. Actual failure: '{self.scenario['correct_diagnosis']}'."
+                ),
+            )
         required: list[str] = self.scenario.get("required_sources", ["logs"])
 
         if action.action_type == "inspect_logs":

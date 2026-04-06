@@ -206,7 +206,11 @@ def grade(
     inspection_order = inspection_order or []
     required_sources = scenario.get("required_sources", ["logs"])   # ordered list
     required         = set(required_sources)                        # set for membership checks
-    min_steps        = len(required) + 1   # inspect all required sources + submit
+    min_steps        = len(required) + 1          # inspect all required sources + submit
+    max_steps        = len(required) * 3 + 2      # hard ceiling; exceeding it = total failure
+
+    if steps_taken > max_steps:
+        return 0.0
 
     d_score  = _diagnosis_score(diagnosis, scenario)
     ed_penalty = _evidence_diagnosis_penalty(diagnosis, scenario, inspection_order)
