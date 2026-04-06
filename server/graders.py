@@ -75,21 +75,20 @@ def _diagnosis_score(diagnosis: str, scenario: dict) -> float:
     return max(0.0, min(0.7, score))
 
 
-def _evidence_score(inspected: set[str], required: set[str]) -> float:
+def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     """
-    +0.05 per required source the agent inspected  (max +0.15 for 3 sources)
-    −0.05 per irrelevant source the agent wasted a step on
-    Clamped to [−0.10, +0.15].
+    +0.08 per required source inspected  (max +0.24 for 3 sources)
+    −0.06 per required source NOT inspected at submit time
+    −0.02 per irrelevant source inspected
+    Clamped to [−0.15, +0.25].
     """
-    relevant   = len(inspected & required)
-    irrelevant = len(inspected - required)
-    score = (relevant * 0.06) - (irrelevant * 0.03)
+    inspected_set = set(inspection_order)
+    relevant   = inspected_set & required
+    missing    = required - inspected_set
+    irrelevant = inspected_set - required
 
-    # small bonus if agent explored more than minimum but not excessively
-    if len(inspected) > len(required):
-        score += 0.02
-
-    return max(-0.10, min(0.15, score))
+    score = (len(relevant) * 0.08) - (len(missing) * 0.06) - (len(irrelevant) * 0.02)
+    return max(-0.15, min(0.25, score))
 
 
 def _efficiency_score(steps_taken: int, min_steps: int) -> float:
@@ -140,7 +139,7 @@ def grade(
     suggested_fix: str | None = None,
     scenario: dict | None = None,
     steps_taken: int = 0,
-    inspected: set[str] | None = None,
+    inspection_order: list[str] | None = None,
     difficulty: str = "easy",   # kept for API compat — not used in scoring logic
 ) -> float:
     """
@@ -152,13 +151,13 @@ def grade(
     Max achievable without fix:  0.70 + 0.15 + 0.15       = 1.00
     Max achievable with fix:     0.70 + 0.15 + 0.15 + 0.15 = 1.00  (capped)
     """
-    scenario  = scenario or {}
-    inspected = inspected or set()
-    required  = set(scenario.get("required_sources", ["logs"]))
-    min_steps = len(required) + 1   # inspect all required sources + submit
+    scenario         = scenario or {}
+    inspection_order = inspection_order or []
+    required         = set(scenario.get("required_sources", ["logs"]))
+    min_steps        = len(required) + 1   # inspect all required sources + submit
 
     d_score = _diagnosis_score(diagnosis, scenario)
-    e_score = _evidence_score(inspected, required)
+    e_score = _evidence_score(inspection_order, required)
     f_score = _efficiency_score(steps_taken, min_steps)
     b_score = _fix_bonus(suggested_fix, scenario)
 
