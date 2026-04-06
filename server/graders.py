@@ -132,6 +132,26 @@ def _fix_bonus(suggested_fix: str | None, scenario: dict) -> float:
     return 0.0
 
 
+def _ordering_bonus(inspection_order: list[str], required_sources: list[str]) -> float:
+    """
+    +0.05 if the agent inspected required sources in the canonical order.
+
+    Canonical order is defined by required_sources in the scenario
+    (always a prefix of logs → config → gradients).
+
+    Only the order of required sources matters — irrelevant sources inspected
+    in between are ignored when checking sequence.
+    """
+    required_set = set(required_sources)
+    # Subsequence of inspection_order containing only required sources
+    inspected_required = [s for s in inspection_order if s in required_set]
+
+    # Check against canonical order, limited to what was actually inspected
+    canonical = [s for s in required_sources if s in inspected_required]
+
+    return 0.05 if inspected_required == canonical else 0.0
+
+
 # ── main entry point ──────────────────────────────────────────────────────────
 
 def grade(
@@ -153,19 +173,16 @@ def grade(
     """
     scenario         = scenario or {}
     inspection_order = inspection_order or []
-    required         = set(scenario.get("required_sources", ["logs"]))
+    required_sources = scenario.get("required_sources", ["logs"])   # ordered list
+    required         = set(required_sources)                        # set for membership checks
     min_steps        = len(required) + 1   # inspect all required sources + submit
 
     d_score = _diagnosis_score(diagnosis, scenario)
     e_score = _evidence_score(inspection_order, required)
     f_score = _efficiency_score(steps_taken, min_steps)
     b_score = _fix_bonus(suggested_fix, scenario)
+    o_bonus = _ordering_bonus(inspection_order, required_sources)
 
-    total = d_score + e_score + f_score + b_score
-
-    # bonus if diagnosis and fix are aligned (basic consistency check)
-    if suggested_fix and diagnosis:
-        if any(word in suggested_fix.lower() for word in diagnosis.lower().split()):
-            total += 0.05
+    total = d_score + e_score + f_score + b_score + o_bonus
 
     return round(max(0.0, min(1.0, total)), 4)
