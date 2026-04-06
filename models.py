@@ -9,7 +9,9 @@ class WhyDidItFailAction(Action):
     diagnosis: str | None = Field(None, description=
         "Required when action_type=submit_diagnosis. Its the agent's conclusion about what is wrong.")
     suggested_fix: str | None = Field(None, description=
-        "TODO: Required for hard task. Exact fix to apply.")
+        "Required when action_type=submit_diagnosis. Exact fix to apply.")
+    reasoning: str | None = Field(None, description=
+        "Required when action_type=submit_diagnosis. Explain what evidence led to this diagnosis.")
 
 
 class WhyDidItFailObservation(Observation):
