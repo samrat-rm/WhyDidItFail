@@ -13,7 +13,7 @@ TASKS
 
 STDOUT FORMAT
     [START]   task=<task_name> scenarios=<n> model=<model_name>
-    [EPISODE] scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
+    [STEP]    scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
     [RESULT]  scenario=<key> score=<0.000> steps=<n> success=<bool>
     [SUMMARY] task=<task_name> avg_score=<0.000> pass_rate=<0.00>
 """
@@ -62,13 +62,25 @@ SYSTEM_PROMPT = textwrap.dedent("""
       inspect_gradients  — examine gradient norm statistics
       submit_diagnosis   — submit your final diagnosis (ends the episode)
 
-    Respond with a JSON object on a single line. Examples:
-        {"action_type": "inspect_logs"}
-        {"action_type": "submit_diagnosis", "diagnosis": "exploding gradients"}
-        {"action_type": "submit_diagnosis", "diagnosis": "overfitting", "suggested_fix": "add dropout=0.3"}
+    OUTPUT FORMAT — STRICT:
+    Output ONLY a raw JSON object. No markdown, no code fences, no backticks, no explanation.
+    Start with { and end with }. One line only.
 
-    Be efficient — inspect only what you need. Submit when confident.
-    The diagnosis should be a short phrase describing the failure mode.
+    Examples:
+      {"action_type": "inspect_logs"}
+      {"action_type": "submit_diagnosis", "diagnosis": "exploding gradients", "suggested_fix": "reduce learning_rate to 0.001", "reasoning": "Loss spiked to NaN by epoch 3 and lr=10.0 in config, indicating weights diverged due to excessive learning rate causing gradient explosion."}
+
+    RULES:
+    - submit_diagnosis MUST include all three fields: diagnosis, suggested_fix, reasoning.
+    - diagnosis is the short failure mode label — it is REQUIRED, never omit it.
+    - reasoning must cite specific values from the data you inspected (loss values, lr, gradient norms, etc.).
+    - Use exact failure mode phrasing for diagnosis: "exploding gradients", "overfitting", "underfitting",
+      "learning rate too high", "learning rate too low", "vanishing gradients",
+      "dying relu", "missing regularization", "batch size too small",
+      "optimizer misconfiguration", "bad weight initialization", "lr scheduler misconfiguration".
+    - Before submitting, check the Feedback field. If it says "N required source(s) still unexamined", inspect those sources first — do not submit until no required sources remain.
+    - If feedback says "This source is not required for this failure mode.", stop investigating that direction and submit.
+    - Never inspect the same source twice.
 """).strip()
 
 
@@ -124,6 +136,8 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
     obs      = result.observation
     history: List[str] = []
     rewards: List[float] = []
+    inspection_order: List[str] = []
+    submit_action: WhyDidItFailAction | None = None
 
     for step in range(1, MAX_STEPS + 1):
         if result.done:
@@ -146,7 +160,7 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
 
         rewards.append(reward)
         history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
-        print(f"  [EPISODE] scenario={scenario_key} step={step} action={act_str} reward={reward:.2f} done={str(done).lower()}", flush=True)
+        print(f"  [STEP]    scenario={scenario_key} step={step} action={act_str} reward={reward:.2f} done={str(done).lower()}", flush=True)
 
         if done:
             break
