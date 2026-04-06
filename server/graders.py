@@ -123,10 +123,14 @@ def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
 
 def _efficiency_score(steps_taken: int, min_steps: int) -> float:
     """
-    0.15 at minimum steps, decays −0.025 per extra step, floor 0.0.
+    0.15 at minimum steps.
+    Decays for extra steps (wasted) or missing steps (early submission).
     min_steps = number of required sources + 1 (the submit action).
     """
-    extra_steps = max(0, steps_taken - min_steps)
+    if steps_taken < min_steps:
+        missing_steps = min_steps - steps_taken
+        return max(0.0, 0.15 - 0.05 * missing_steps)
+    extra_steps = steps_taken - min_steps
     penalty = 0.02 * (extra_steps ** 1.2)
     return max(0.0, 0.15 - penalty)
 
