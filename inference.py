@@ -82,11 +82,11 @@ SYSTEM_PROMPT = textwrap.dedent("""
     5. Your reasoning MUST quote specific numbers from the Data you received (e.g. "val_loss=2.34 at epoch 20, train_acc=0.99"). If you cannot quote a specific number from the Data, you have not read it — do not submit yet.
 
     LABEL DECISION RULES — use these to pick the exact diagnosis label:
-    - loss becomes NaN or spikes 100x+ in one epoch → "exploding gradients"  (NOT "learning rate too high")
-    - loss oscillates wildly epoch-to-epoch but stays finite → "learning rate too high"
+    - train_loss is NaN or inf at ANY epoch → "exploding gradients". ABSOLUTE RULE. No other label applies.
+    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) → "learning rate too high"
+    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random) → "underfitting". ABSOLUTE RULE regardless of config.
     - train_loss low, val_loss rising AND config shows weight_decay=0 AND dropout=0 → "missing regularization" (NOT "overfitting")
-    - train_loss low, val_loss rising AND regularization is already configured → "overfitting"
-    - both train_loss and val_loss stay high / plateau → "underfitting"
+    - train_loss low, val_loss rising AND regularization is already present in config → "overfitting"
     - gradient norm = 0.0 exactly in hidden layers AND config shows ReLU activation → "dying relu"
     - gradient norm tiny but nonzero (e.g. 1e-5, 1e-8) AND config shows sigmoid/tanh → "vanishing gradients"
     - config shows lr_scheduler with gamma > 1.0 → "lr scheduler misconfiguration"
@@ -244,10 +244,10 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
 
 # ── task runners ──────────────────────────────────────────────────────────────
 
-async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> None:
+async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> List[float]:
     if not scenario_keys:
         print(f"[SUMMARY] task={task_name} — no scenarios defined yet", flush=True)
-        return
+        return []
 
     if USE_LOCAL:
         try:
@@ -269,6 +269,7 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_rate = sum(1 for r in results if r["success"]) / len(results)
     print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
+    return [r["score"] for r in results]
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -278,10 +279,12 @@ async def main() -> None:
     env = await _make_env()
 
     try:
-        await run_task("easy",   EASY_SCENARIOS,   env, client)
-        await run_task("medium", MEDIUM_SCENARIOS, env, client)
-        await run_task("hard",   HARD_SCENARIOS,   env, client)
-        print("[END] all tasks complete", flush=True)
+        scores = []
+        scores += await run_task("easy",   EASY_SCENARIOS,   env, client)
+        scores += await run_task("medium", MEDIUM_SCENARIOS, env, client)
+        scores += await run_task("hard",   HARD_SCENARIOS,   env, client)
+        overall = sum(scores) / len(scores) if scores else 0.0
+        print(f"[END] score={overall:.3f}", flush=True)
     finally:
         try:
             await env.close()
