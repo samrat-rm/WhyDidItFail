@@ -33,7 +33,7 @@ load_dotenv()
 from openai import OpenAI
 
 from client import WhyDidItFailEnv
-from llm_judge import judge as llm_judge
+from server.llm_judge import judge as llm_judge
 from models import WhyDidItFailAction
 from server.scenarios import SCENARIOS
 
