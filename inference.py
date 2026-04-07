@@ -22,6 +22,7 @@ STDOUT FORMAT
 import asyncio
 import json
 import os
+import sys
 import textwrap
 from typing import List
 
@@ -87,8 +88,10 @@ SYSTEM_PROMPT = textwrap.dedent("""
     LABEL DECISION RULES — use these to pick the exact diagnosis label:
     - train_loss is NaN from epoch 1 AND config shows extreme weight_init (e.g. std=100) AND gradient norms are massive (>10000) → "bad weight initialization". Check config FIRST before applying the NaN rule below.
     - train_loss is NaN or inf AFTER at least one finite epoch → "exploding gradients". ABSOLUTE RULE. No other label applies.
-    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) → "learning rate too high"
-    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random baseline ~10%) → "underfitting". ABSOLUTE RULE. The config is IRRELEVANT. Do NOT wait for gradients. Submit immediately after seeing the logs.
+    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) AND config shows batch_size ≤ 4 → "batch size too small" (NOT "learning rate too high"). PRIORITY RULE: check batch_size in config before applying the oscillation → lr rule.
+    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) AND config shows batch_size > 4 → "learning rate too high"
+    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random baseline ~10%) AND config shows SGD optimizer with momentum=0.0 → "optimizer misconfiguration" (NOT "underfitting"). Check config for SGD momentum before applying the underfitting rule.
+    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random baseline ~10%) AND config does NOT show SGD with momentum=0.0 → "underfitting". ABSOLUTE RULE. Do NOT wait for gradients. Submit immediately after seeing the logs.
     - train_loss low, val_loss rising AND config shows weight_decay=0.0 exactly AND dropout=0.0 exactly → "missing regularization" (NOT "overfitting")
     - train_loss low, val_loss rising AND config shows ANY non-zero weight_decay OR ANY non-zero dropout → "overfitting" (NOT "missing regularization")
     - gradient norm = 0.0 exactly in hidden layers AND config shows ReLU activation → "dying relu"
@@ -190,7 +193,6 @@ async def run_episode(
 ) -> tuple[dict, WhyDidItFailEnv]:
     """Run one full episode for a specific scenario. Returns (result dict, env).
     env may be a fresh reconnected instance if the WebSocket dropped between episodes."""
-    import sys
     try:
         result = await env.reset(scenario_key=scenario_key)
     except ConnectionClosedError:
@@ -233,7 +235,8 @@ async def run_episode(
                 submit_action = action  # judge runs after loop — WebSocket is closed by then
 
             rewards.append(reward)
-            history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
+            data_seen = json.dumps(obs.visible_data) if obs.visible_data else "{}"
+            history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
             print(f"[STEP] step={step} action={act_str} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
             if done:
@@ -254,10 +257,10 @@ async def run_episode(
             )
         if judge_score is None:
             score = round(keyword_score, 4)
-            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=__import__("sys").stderr, flush=True)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=sys.stderr, flush=True)
         else:
             score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
-            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=__import__("sys").stderr, flush=True)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
 
@@ -289,11 +292,11 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     for key in scenario_keys:
         res, env = await run_episode(env, client, key, task_name, effective_model)
         results.append(res)
-        print(f"  [RESULT]  scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
+        print(f"  [RESULT]  scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", file=sys.stderr, flush=True)
 
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_rate = sum(1 for r in results if r["success"]) / len(results)
-    print(f"  [SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
+    print(f"  [SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", file=sys.stderr, flush=True)
     return [r["score"] for r in results]
 
 
@@ -309,12 +312,12 @@ async def main() -> None:
         scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
         overall = sum(scores) / len(scores) if scores else 0.0
-        print(f"  [OVERALL] avg_score={overall:.3f}", flush=True)
+        print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
     finally:
         try:
             await env.close()
         except Exception as e:
-            print(f"  [DEBUG]   env.close() error: {e}", flush=True)
+            print(f"  [DEBUG]   env.close() error: {e}", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":
