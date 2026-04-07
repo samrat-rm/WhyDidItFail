@@ -16,6 +16,7 @@ STDOUT FORMAT
     [STEP]    scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
     [RESULT]  scenario=<key> score=<0.000> steps=<n> success=<bool>
     [SUMMARY] task=<task_name> avg_score=<0.000> pass_rate=<0.00>
+    [END]     all tasks complete
 """
 
 import asyncio
@@ -23,6 +24,8 @@ import json
 import os
 import textwrap
 from typing import List
+
+from websockets.exceptions import ConnectionClosedError
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -119,9 +122,12 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
             ],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
+            response_format={"type": "json_object"},
         )
         text = (completion.choices[0].message.content or "").strip()
-        return WhyDidItFailAction(**json.loads(text))
+        data = json.loads(text)
+        filtered = {k: v for k, v in data.items() if k in WhyDidItFailAction.model_fields}
+        return WhyDidItFailAction(**filtered)
     except Exception as exc:
         print(f"  [DEBUG] parse error: {exc}", flush=True)
         if step <= 2:
@@ -144,7 +150,11 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
             break
 
         action   = _get_action(client, step, _summarize(obs), history)
-        result   = await env.step(action)
+        try:
+            result = await env.step(action)
+        except ConnectionClosedError as e:
+            print(f"  [WARN]    scenario={scenario_key} step={step} WebSocket dropped: {e}", flush=True)
+            break
         obs      = result.observation
         reward   = result.reward or 0.0
         done     = result.done
@@ -219,6 +229,7 @@ async def main() -> None:
         await run_task("easy",   EASY_SCENARIOS,   env, client)
         await run_task("medium", MEDIUM_SCENARIOS, env, client)
         await run_task("hard",   HARD_SCENARIOS,   env, client)
+        print("[END] all tasks complete", flush=True)
     finally:
         try:
             await env.close()
