@@ -224,7 +224,48 @@ Each step returns a `WhyDidItFailObservation` with:
 
 ## Setup
 
-### Environment Variables
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) — Python package manager
+- [Docker](https://www.docker.com/) — for running the environment server
+- A Hugging Face account with an API token ([get one here](https://huggingface.co/settings/tokens))
+
+---
+
+### 1. Install uv
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or via Homebrew
+brew install uv
+```
+
+---
+
+### 2. Install dependencies
+
+```bash
+git clone https://github.com/samrat-rm/WhyDidItFail
+cd WhyDidItFail
+uv sync
+```
+
+---
+
+### 3. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```bash
+HF_TOKEN=your_huggingface_token_here
+
+# Optional overrides
+API_BASE_URL=https://router.huggingface.co/v1
+MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+SERVER_URL=http://localhost:8000
+```
 
 | Variable | Default | Required |
 |---|---|---|
@@ -233,41 +274,69 @@ Each step returns a `WhyDidItFailObservation` with:
 | `MODEL_NAME` | `Qwen/Qwen2.5-72B-Instruct` | No |
 | `SERVER_URL` | `http://localhost:8000` | No |
 
-### Running Locally
+---
+
+### 4. Start the environment server
+
+The environment server runs in Docker. Build and start it:
 
 ```bash
-# Install dependencies
-uv sync
+# Build the image
+docker build -t why_did_it_fail_env:latest .
 
-# Start the environment server
-uvicorn server.app:app --reload
-
-# Run inference (in another terminal)
-HF_TOKEN=your_token uv run python inference.py
+# Run the server (exposes on port 8000)
+docker run -p 8000:8000 why_did_it_fail_env:latest
 ```
 
-### Docker
+The server is ready when you see `Uvicorn running on http://0.0.0.0:8000`.
+
+---
+
+### 5. Run inference
+
+In a separate terminal:
 
 ```bash
-docker build -t whydiditfail-env:latest .
-docker run -p 8000:8000 whydiditfail-env:latest
+uv run python inference.py
+
+# Python 3 explicit
+uv run python3 inference.py
 ```
 
-### Local Agent (No API Key Needed)
+Stdout will stream `[START]` / `[STEP]` / `[END]` lines per episode. Internal logs go to stderr.
 
-Want to test without calling an external LLM? The local agent uses a rule-based heuristic that mimics the expected agent behavior — useful for smoke testing the environment and grader logic.
+---
+
+### Local Agent — No API Key Required
+
+To smoke test the full pipeline without calling an external LLM, you can run inference with a local model via [Ollama](https://ollama.com/).
+
+**1. Install Ollama**
 
 ```bash
-# Run with local agent (no HF_TOKEN needed)
+brew install ollama
+```
+
+**2. Pull a model**
+
+```bash
+# Recommended: a small instruction-tuned model
+ollama pull qwen2.5:7b
+```
+
+**3. Start the Ollama server**
+
+```bash
+ollama serve
+```
+
+**4. Run inference against the local model**
+
+```bash
 USE_LOCAL=true uv run python inference.py
 ```
 
-The local agent (`local_agent.py`) follows a fixed inspection strategy:
-1. Always inspect logs first
-2. Inspects config and gradients if the task requires them
-3. Submits a deterministic diagnosis based on simple pattern matching
-
-It won't score like a frontier model, but it will complete episodes cleanly and let you verify the full pipeline — server, grader, judge, stdout format — without any API calls.
+> The local agent follows a fixed inspection strategy and won't match frontier model scores, but it exercises the full pipeline — server, grader, judge, and stdout format — with no API calls or token costs.
 
 ---
 
