@@ -108,7 +108,7 @@ def _evidence_diagnosis_penalty(
 def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     """
     +0.08 per required source inspected  (max +0.24 for 3 sources)
-    −0.06 per required source NOT inspected at submit time
+    −0.10 for each required source NOT inspected at submit time
     −0.02 per irrelevant source inspected
     Clamped to [−0.15, +0.25].
     """
@@ -117,7 +117,7 @@ def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     missing    = required - inspected_set
     irrelevant = inspected_set - required
 
-    score = (len(relevant) * 0.08) - (len(missing) * 0.06) - (len(irrelevant) * 0.02)
+    score = (len(relevant) * 0.08) - (len(missing) * 0.10) - (len(irrelevant) * 0.02)
     return max(-0.15, min(0.25, score))
 
 
