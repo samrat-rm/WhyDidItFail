@@ -81,6 +81,27 @@ SYSTEM_PROMPT = textwrap.dedent("""
     4. When no required actions remain, form your diagnosis based ONLY on values you actually saw in Data.
     5. Your reasoning MUST quote specific numbers from the Data you received (e.g. "val_loss=2.34 at epoch 20, train_acc=0.99"). If you cannot quote a specific number from the Data, you have not read it — do not submit yet.
 
+    LABEL DECISION RULES — use these to pick the exact diagnosis label:
+    - loss becomes NaN or spikes 100x+ in one epoch → "exploding gradients"  (NOT "learning rate too high")
+    - loss oscillates wildly epoch-to-epoch but stays finite → "learning rate too high"
+    - train_loss low, val_loss rising AND config shows weight_decay=0 AND dropout=0 → "missing regularization" (NOT "overfitting")
+    - train_loss low, val_loss rising AND regularization is already configured → "overfitting"
+    - both train_loss and val_loss stay high / plateau → "underfitting"
+    - gradient norm = 0.0 exactly in hidden layers AND config shows ReLU activation → "dying relu"
+    - gradient norm tiny but nonzero (e.g. 1e-5, 1e-8) AND config shows sigmoid/tanh → "vanishing gradients"
+    - config shows lr_scheduler with gamma > 1.0 → "lr scheduler misconfiguration"
+    - config shows weight_init with extreme std → "bad weight initialization"
+    - config shows SGD optimizer with momentum=0.0 → "optimizer misconfiguration"
+
+    NULL DATA RULE:
+    - If Data shows {"gradient_norms": null}, gradient data was NOT collected for this run. This is normal for some scenarios — it is NOT a data pipeline error.
+    - Do NOT diagnose "missing data". Instead, base your diagnosis on the logs and config you already inspected.
+
+    STOP RULES — mandatory:
+    - "This source is not required for this failure mode." means STOP IMMEDIATELY. Submit your diagnosis on the very next action. Do NOT call any more inspect actions — not even one.
+    - "Relevant clue found" with no "Next required action" → all sources covered. Submit on the next action.
+    - CRITICAL: If Feedback contains "Next required action: inspect_X", you MUST call that action before submitting.
+
     RULES:
     - submit_diagnosis MUST include all three fields: diagnosis, suggested_fix, reasoning.
     - diagnosis is the short failure mode label — it is REQUIRED, never omit it.
@@ -88,9 +109,6 @@ SYSTEM_PROMPT = textwrap.dedent("""
       "learning rate too high", "learning rate too low", "vanishing gradients",
       "dying relu", "missing regularization", "batch size too small",
       "optimizer misconfiguration", "bad weight initialization", "lr scheduler misconfiguration".
-    - CRITICAL: If Feedback contains "Next required action: inspect_X", you MUST call that action before submitting. Do not submit while any required source is unexamined.
-    - If Feedback says "This source is not required for this failure mode." — submit your diagnosis on the very next step. Do NOT inspect other sources.
-    - If Feedback says "Relevant clue found" with no "Next required action" — all sources are covered. Submit on the next step.
     - Never inspect the same source twice.
 """).strip()
 
