@@ -62,10 +62,14 @@ def judge(
     suggested_fix: str | None,
     scenario: dict,
     inspection_order: list[str],
-) -> float:
-    """Score reasoning quality. Returns 0.0–1.0. Returns 0.0 if reasoning absent or call fails."""
+) -> float | None:
+    """Score reasoning quality. Returns 0.0–1.0, or None if unavailable/failed.
+
+    None signals the caller to skip judge weighting entirely and use the
+    keyword score at full weight (1.0) rather than 0.85.
+    """
     if not reasoning or not reasoning.strip():
-        return 0.0
+        return None
 
     try:
         completion = client.chat.completions.create(
@@ -91,4 +95,4 @@ def judge(
 
     except Exception as exc:
         print(f"  [JUDGE] failed: {exc}", flush=True)
-        return 0.0
+        return None

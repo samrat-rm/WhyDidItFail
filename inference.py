@@ -235,8 +235,12 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
             scenario=SCENARIOS[scenario_key],
             inspection_order=inspection_order,
         )
-    score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
-    print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", flush=True)
+    if judge_score is None:
+        score = round(keyword_score, 4)
+        print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", flush=True)
+    else:
+        score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
+        print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", flush=True)
 
     success = score >= SUCCESS_THRESHOLD
     return {"scenario_key": scenario_key, "score": score, "steps": len(rewards), "success": success}, env
