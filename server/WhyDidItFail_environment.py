@@ -1,11 +1,3 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""WhyDidItFail Environment Implementation."""
-
 import random
 from typing import Any, Optional
 from uuid import uuid4
@@ -19,8 +11,6 @@ from server.graders import grade
 
 
 class WhyDidItFailEnvironment(Environment):
-    """Diagnostic environment where the agent investigates a failed ML training run."""
-
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
     def __init__(self):
@@ -149,8 +139,6 @@ class WhyDidItFailEnvironment(Environment):
                 done=False,
                 feedback=f"Unknown action '{action.action_type}'. No reward.",
             )
-
-    # ── helpers ──────────────────────────────────────────────────────────────
 
     # Rewards decay as more required sources are discovered — first clue is worth most.
     _REQUIRED_STEP_REWARDS = [0.10, 0.07, 0.05]

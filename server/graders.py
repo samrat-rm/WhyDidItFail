@@ -12,8 +12,6 @@ Step-level partial rewards are returned by the environment's step() on every act
 giving the agent a signal over the full trajectory before the episode ends.
 """
 
-# ── keyword maps ──────────────────────────────────────────────────────────────
-
 EXACT_KEYWORDS: dict[str, list[str]] = {
     "exploding_gradients":           ["exploding gradients", "exploding"],
     "learning_rate_too_high":        ["learning rate too high", "lr too high"],
@@ -44,8 +42,6 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "lr_scheduler_misconfiguration": ["scheduler", "spike", "periodic", "step_lr"],
 }
 
-
-# ── sub-scorers ───────────────────────────────────────────────────────────────
 
 def _diagnosis_score(diagnosis: str, scenario: dict) -> float:
     """
@@ -188,8 +184,6 @@ def _ordering_bonus(inspection_order: list[str], required_sources: list[str]) ->
 
     return 0.05 if inspected_required == canonical else 0.0
 
-
-# ── main entry point ──────────────────────────────────────────────────────────
 
 def grade(
     diagnosis: str,

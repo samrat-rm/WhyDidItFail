@@ -1,22 +1,16 @@
 """
 Inference Script — WhyDidItFail
-===================================
-MANDATORY environment variables:
-    API_BASE_URL        The API endpoint for the LLM.
-    MODEL_NAME          The model identifier to use for inference.
-    HF_TOKEN / API_KEY  Your Hugging Face / API key.
 
-TASKS
-    Task 1 (easy)   — identify failure mode from logs only
-    Task 2 (medium) — identify failure mode from logs + config
-    Task 3 (hard)   — identify failure mode + provide correct fix
+Environment variables:
+    HF_TOKEN     required
+    API_BASE_URL default: https://router.huggingface.co/v1
+    MODEL_NAME   default: Qwen/Qwen2.5-72B-Instruct
+    SERVER_URL   default: http://localhost:8000
 
-STDOUT FORMAT
-    [START]   task=<task_name> scenarios=<n> model=<model_name>
-    [STEP]    scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
-    [RESULT]  scenario=<key> score=<0.000> steps=<n> success=<bool>
-    [SUMMARY] task=<task_name> avg_score=<0.000> pass_rate=<0.00>
-    [END]     all tasks complete
+Stdout format (per episode):
+    [START]   task=<name> env=whydiditfail model=<model>
+    [STEP]    step=<n> action=<json> reward=<0.00> done=<bool> error=<null|msg>
+    [END]     success=<bool> steps=<n> rewards=<csv>
 """
 
 import asyncio
@@ -52,13 +46,9 @@ TEMPERATURE      = 0.3
 MAX_TOKENS       = 256
 SUCCESS_THRESHOLD = 0.5
 
-# ── scenario lists by difficulty ─────────────────────────────────────────────
-
 EASY_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "easy"]
 MEDIUM_SCENARIOS = [k for k, v in SCENARIOS.items() if v["difficulty"] == "medium"]
 HARD_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "hard"]
-
-# ── prompts ───────────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are a machine learning engineer diagnosing a failed training run.
@@ -169,12 +159,10 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
         filtered = {k: v for k, v in data.items() if k in WhyDidItFailAction.model_fields}
         return WhyDidItFailAction(**filtered)
     except Exception as exc:
-        print(f"  [DEBUG] parse error: {exc}", flush=True)
+        print(f"  [DEBUG] parse error: {exc}", file=sys.stderr, flush=True)
         if step <= 2:
             return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None,reasoning=None)
         return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None,reasoning=None)
-
-# ── episode runner ────────────────────────────────────────────────────────────
 
 async def _make_env() -> WhyDidItFailEnv:
     return (
@@ -272,8 +260,6 @@ async def run_episode(
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
 
-# ── task runners ──────────────────────────────────────────────────────────────
-
 async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> List[float]:
     if not scenario_keys:
         print(f"  [INFO]    task={task_name} — no scenarios defined yet", flush=True)
@@ -299,8 +285,6 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
     return [r["score"] for r in results]
 
-
-# ── main ──────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
