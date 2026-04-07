@@ -42,6 +42,7 @@ SERVER_URL       = os.getenv("SERVER_URL", "http://localhost:8000")
 API_KEY          = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL     = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME       = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+USE_LOCAL        = os.getenv("USE_LOCAL", "false").lower() == "true"
 MAX_STEPS        = 8
 TEMPERATURE      = 0.3
 MAX_TOKENS       = 256
@@ -122,6 +123,11 @@ def _summarize(obs) -> str:
 
 
 def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str]) -> WhyDidItFailAction:
+    if USE_LOCAL:
+        from local_agent import get_action as _local_get_action
+        prompt = f"{SYSTEM_PROMPT}\n\n{_user_prompt(step, obs_summary, history)}"
+        return _local_get_action(step, prompt)
+
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
@@ -225,7 +231,16 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
         print(f"[SUMMARY] task={task_name} — no scenarios defined yet", flush=True)
         return
 
-    print(f"\n[START] task={task_name} scenarios={len(scenario_keys)} model={MODEL_NAME}", flush=True)
+    if USE_LOCAL:
+        try:
+            from local_agent import LOCAL_MODEL
+            effective_model = LOCAL_MODEL
+        except Exception:
+            effective_model = "local_model"
+    else:
+        effective_model = MODEL_NAME
+
+    print(f"\n[START] task={task_name} scenarios={len(scenario_keys)} model={effective_model}", flush=True)
 
     results = []
     for key in scenario_keys:
