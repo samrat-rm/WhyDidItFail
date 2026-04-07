@@ -71,18 +71,25 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     Examples:
       {"action_type": "inspect_logs"}
-      {"action_type": "submit_diagnosis", "diagnosis": "exploding gradients", "suggested_fix": "reduce learning_rate to 0.001", "reasoning": "Loss spiked to NaN by epoch 3 and lr=10.0 in config, indicating weights diverged due to excessive learning rate causing gradient explosion."}
+      {"action_type": "submit_diagnosis", "diagnosis": "overfitting", "suggested_fix": "add dropout=0.3 and weight_decay=0.01", "reasoning": "train_loss fell to 0.03 by epoch 20 while val_loss rose to 2.34; train_acc=0.99 vs val_acc=0.54 — clear generalization gap. Config shows dropout=0.0 and weight_decay=0.0."}
+
+    DIAGNOSIS PROCESS — follow this every episode:
+    1. Call inspect_logs first — always.
+    2. Read the Data field carefully. Note the exact numeric values (loss, acc, lr, gradient norms, model).
+    3. If Feedback says "Next required action: inspect_X" — call that action next, no exceptions.
+    4. When no required actions remain, form your diagnosis based ONLY on values you actually saw in Data.
+    5. Your reasoning MUST quote specific numbers from the Data you received (e.g. "val_loss=2.34 at epoch 20, train_acc=0.99"). If you cannot quote a specific number from the Data, you have not read it — do not submit yet.
 
     RULES:
     - submit_diagnosis MUST include all three fields: diagnosis, suggested_fix, reasoning.
     - diagnosis is the short failure mode label — it is REQUIRED, never omit it.
-    - reasoning must cite specific values from the data you inspected (loss values, lr, gradient norms, etc.).
     - Use exact failure mode phrasing for diagnosis: "exploding gradients", "overfitting", "underfitting",
       "learning rate too high", "learning rate too low", "vanishing gradients",
       "dying relu", "missing regularization", "batch size too small",
       "optimizer misconfiguration", "bad weight initialization", "lr scheduler misconfiguration".
-    - Before submitting, check the Feedback field. If it says "N required source(s) still unexamined", inspect those sources first — do not submit until no required sources remain.
-    - If feedback says "This source is not required for this failure mode.", stop investigating that direction and submit.
+    - CRITICAL: If Feedback contains "Next required action: inspect_X", you MUST call that action before submitting. Do not submit while any required source is unexamined.
+    - If Feedback says "This source is not required for this failure mode." — submit your diagnosis on the very next step. Do NOT inspect other sources.
+    - If Feedback says "Relevant clue found" with no "Next required action" — all sources are covered. Submit on the next step.
     - Never inspect the same source twice.
 """).strip()
 
@@ -98,6 +105,8 @@ def _user_prompt(step: int, obs_summary: str, history: List[str]) -> str:
         Recent history:
         {history_block}
 
+        Before responding: read the Data above carefully. What specific numeric values do you see?
+        Quote at least one value from the Data in your reasoning before submitting a diagnosis.
         Respond with a JSON action.
     """).strip()
 
@@ -136,9 +145,23 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
 
 # ── episode runner ────────────────────────────────────────────────────────────
 
-async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -> dict:
-    """Run one full episode for a specific scenario. Returns result dict."""
-    result   = await env.reset(scenario_key=scenario_key)
+async def _make_env() -> WhyDidItFailEnv:
+    return (
+        await WhyDidItFailEnv.from_docker_image(IMAGE_NAME)
+        if IMAGE_NAME
+        else WhyDidItFailEnv(base_url=SERVER_URL)
+    )
+
+
+async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -> tuple[dict, WhyDidItFailEnv]:
+    """Run one full episode for a specific scenario. Returns (result dict, env).
+    env may be a fresh reconnected instance if the WebSocket dropped between episodes."""
+    try:
+        result = await env.reset(scenario_key=scenario_key)
+    except ConnectionClosedError:
+        print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", flush=True)
+        env = await _make_env()
+        result = await env.reset(scenario_key=scenario_key)
     obs      = result.observation
     history: List[str] = []
     rewards: List[float] = []
@@ -192,7 +215,7 @@ async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -
     print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", flush=True)
 
     success = score >= SUCCESS_THRESHOLD
-    return {"scenario_key": scenario_key, "score": score, "steps": len(rewards), "success": success}
+    return {"scenario_key": scenario_key, "score": score, "steps": len(rewards), "success": success}, env
 
 
 # ── task runners ──────────────────────────────────────────────────────────────
@@ -206,7 +229,7 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
 
     results = []
     for key in scenario_keys:
-        res = await run_episode(env, client, key)
+        res, env = await run_episode(env, client, key)
         results.append(res)
         print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
@@ -219,11 +242,7 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
 
 async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = (
-        await WhyDidItFailEnv.from_docker_image(IMAGE_NAME)
-        if IMAGE_NAME
-        else WhyDidItFailEnv(base_url=SERVER_URL)
-    )
+    env = await _make_env()
 
     try:
         await run_task("easy",   EASY_SCENARIOS,   env, client)
