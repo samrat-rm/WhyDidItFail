@@ -190,10 +190,11 @@ async def run_episode(
 ) -> tuple[dict, WhyDidItFailEnv]:
     """Run one full episode for a specific scenario. Returns (result dict, env).
     env may be a fresh reconnected instance if the WebSocket dropped between episodes."""
+    import sys
     try:
         result = await env.reset(scenario_key=scenario_key)
     except ConnectionClosedError:
-        print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", flush=True)
+        print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", file=sys.stderr, flush=True)
         env = await _make_env()
         result = await env.reset(scenario_key=scenario_key)
 
@@ -204,64 +205,66 @@ async def run_episode(
     rewards: List[float] = []
     inspection_order: List[str] = []
     submit_action: WhyDidItFailAction | None = None
-    last_error: str | None = None
+    score    = 0.0
+    success  = False
 
-    for step in range(1, MAX_STEPS + 1):
-        if result.done:
-            break
+    try:
+        for step in range(1, MAX_STEPS + 1):
+            if result.done:
+                break
 
-        action   = _get_action(client, step, _summarize(obs), history)
-        last_error = None
-        try:
-            result = await env.step(action)
-        except ConnectionClosedError as e:
-            last_error = str(e)
-            print(f"[STEP] step={step} action={action.action_type} reward=0.00 done=true error={last_error}", flush=True)
-            break
-        obs      = result.observation
-        reward   = result.reward or 0.0
-        done     = result.done
-        act_str  = action.model_dump_json(exclude_none=True, exclude_defaults=True)
+            action = _get_action(client, step, _summarize(obs), history)
+            try:
+                result = await env.step(action)
+            except ConnectionClosedError as e:
+                print(f"[STEP] step={step} action={action.action_type} reward=0.00 done=true error={e}", flush=True)
+                break
+            obs    = result.observation
+            reward = result.reward or 0.0
+            done   = result.done
+            act_str = action.model_dump_json(exclude_none=True, exclude_defaults=True)
 
-        if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
-            source = action.action_type.replace("inspect_", "")
-            if source not in inspection_order:
-                inspection_order.append(source)
+            if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
+                source = action.action_type.replace("inspect_", "")
+                if source not in inspection_order:
+                    inspection_order.append(source)
 
-        if action.action_type == "submit_diagnosis":
-            submit_action = action  # judge runs after loop — WebSocket is closed by then
+            if action.action_type == "submit_diagnosis":
+                submit_action = action  # judge runs after loop — WebSocket is closed by then
 
-        rewards.append(reward)
-        history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
-        print(f"[STEP] step={step} action={act_str} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
+            rewards.append(reward)
+            history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
+            print(f"[STEP] step={step} action={act_str} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
-        if done:
-            break
+            if done:
+                break
 
-    # WebSocket is closed — safe to call the judge now
-    keyword_score = rewards[-1] if rewards else 0.0
-    judge_score: float | None = None
-    if submit_action is not None:
-        judge_score = llm_judge(
-            client=client,
-            model=MODEL_NAME,
-            diagnosis=submit_action.diagnosis or "",
-            reasoning=submit_action.reasoning,
-            suggested_fix=submit_action.suggested_fix,
-            scenario=SCENARIOS[scenario_key],
-            inspection_order=inspection_order,
-        )
-    if judge_score is None:
-        score = round(keyword_score, 4)
-        print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", flush=True)
-    else:
-        score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
-        print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", flush=True)
+        # WebSocket is closed — safe to call the judge now
+        keyword_score = rewards[-1] if rewards else 0.0
+        judge_score: float | None = None
+        if submit_action is not None:
+            judge_score = llm_judge(
+                client=client,
+                model=MODEL_NAME,
+                diagnosis=submit_action.diagnosis or "",
+                reasoning=submit_action.reasoning,
+                suggested_fix=submit_action.suggested_fix,
+                scenario=SCENARIOS[scenario_key],
+                inspection_order=inspection_order,
+            )
+        if judge_score is None:
+            score = round(keyword_score, 4)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=__import__("sys").stderr, flush=True)
+        else:
+            score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=__import__("sys").stderr, flush=True)
 
-    success = score >= SUCCESS_THRESHOLD
-    steps_taken = len(rewards)
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
+        success = score >= SUCCESS_THRESHOLD
+
+    finally:
+        steps_taken = len(rewards)
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
