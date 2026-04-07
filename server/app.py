@@ -28,6 +28,8 @@ Usage:
     python -m server.app
 """
 
+import os
+
 try:
     from openenv.core.env_server.http_server import create_app
 except Exception as e:  # pragma: no cover
@@ -42,6 +44,8 @@ except ImportError:
     from models import WhyDidItFailAction, WhyDidItFailObservation
     from server.WhyDidItFail_environment import WhyDidItFailEnvironment
 
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 # Create the app with web interface and README integration
 app = create_app(
@@ -51,6 +55,13 @@ app = create_app(
     env_name="WhyDidItFail",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
+
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/playground-static", StaticFiles(directory=_static_dir), name="playground-static")
+
+@app.get("/playground")
+async def playground():
+    return FileResponse(os.path.join(_static_dir, "playground.html"))
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):
