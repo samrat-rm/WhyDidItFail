@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhyDidItFail — Playground</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0d0d0d;
+  --surface:     #141414;
+  --surface-2:   #1a1a1a;
+  --surface-3:   #222;
+  --border:      #2a2a2a;
+  --border-hi:   #444;
+  --text:        #e5e5e5;
+  --muted:       #666;
+  --subtle:      #3a3a3a;
+  --blue:        #3b82f6;
+  --blue-dim:    rgba(59,130,246,0.12);
+  --amber:       #f59e0b;
+  --amber-dim:   rgba(245,158,11,0.12);
+  --green:       #22c55e;
+  --green-dim:   rgba(34,197,94,0.10);
+  --yellow:      #eab308;
+  --yellow-dim:  rgba(234,179,8,0.10);
+  --red:         #ef4444;
+  --red-dim:     rgba(239,68,68,0.10);
+  --mono:        'JetBrains Mono','Fira Code',monospace;
+  --r:           6px;
+  --r-sm:        4px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px; line-height: 1.5; }
+
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Header ───────────────────────────────────────────────── */
+#header {
+  height: 52px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; flex-shrink: 0; background: var(--surface);
+}
+.logo { font-weight: 600; font-size: 15px; }
+.logo-sub { font-size: 12px; color: var(--muted); margin-left: 8px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+#step-counter { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.spill {
+  font-size: 11px; font-weight: 500; padding: 2px 8px;
+  border-radius: 99px; border: 1px solid transparent;
+}
+.spill-active  { background: var(--green-dim);  color: var(--green);  border-color: rgba(34,197,94,.2); }
+.spill-done    { background: var(--amber-dim);  color: var(--amber);  border-color: rgba(245,158,11,.2); }
+.spill-error   { background: var(--red-dim);    color: var(--red);    border-color: rgba(239,68,68,.2); }
+
+/* ── Main scroll area ─────────────────────────────────────── */
+#main {
+  flex: 1; overflow-y: auto; padding: 24px 0 12px;
+  display: flex; flex-direction: column; align-items: center;
+}
+
+/* ── Empty state ─────────────────────────────────────────── */
+#empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 40px; color: var(--muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 16px; opacity: .35; }
+#empty h2 { font-size: 18px; font-weight: 500; color: var(--text); margin-bottom: 8px; }
+#empty p  { margin-bottom: 24px; }
+
+/* ── Task banner ─────────────────────────────────────────── */
+#task-banner {
+  width: 100%; max-width: 700px; padding: 0 20px; margin-bottom: 16px;
+}
+.task-card {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px 16px;
+}
+.tiny-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .8px;
+  color: var(--muted); font-weight: 600;
+}
+.task-card p { margin-top: 6px; font-size: 13px; line-height: 1.6; }
+.task-meta   { margin-top: 8px; display: flex; gap: 6px; }
+
+/* ── Timeline ─────────────────────────────────────────────── */
+#timeline {
+  width: 100%; max-width: 700px; padding: 0 20px;
+  display: flex; flex-direction: column;
+}
+
+/* ── Step card ─────────────────────────────────────────────── */
+.sc { display: flex; gap: 14px; padding-bottom: 14px; animation: fadeUp .18s ease-out; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+.sc-aside { display: flex; flex-direction: column; align-items: center; width: 32px; flex-shrink: 0; }
+.sc-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--subtle); border: 2px solid var(--bg);
+  margin-top: 14px; flex-shrink: 0;
+}
+.sc-dot.inspect { background: var(--blue); }
+.sc-dot.submit  { background: var(--amber); }
+.sc-dot.success { background: var(--green); }
+.sc-dot.fail    { background: var(--red); }
+.sc-dot.start   { background: var(--muted); }
+.sc-line { width: 2px; flex: 1; background: var(--border); min-height: 16px; }
+
+.sc-body {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden; min-width: 0;
+}
+
+/* card header */
+.sc-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.sc-num { font-size: 11px; color: var(--muted); font-family: var(--mono); min-width: 22px; }
+
+.badge {
+  font-size: 11px; font-weight: 500; padding: 2px 8px;
+  border-radius: var(--r-sm); font-family: var(--mono);
+  border: 1px solid transparent;
+}
+.badge-inspect { background: var(--blue-dim);  color: var(--blue);  border-color: rgba(59,130,246,.2); }
+.badge-submit  { background: var(--amber-dim); color: var(--amber); border-color: rgba(245,158,11,.2); }
+.badge-start   { background: var(--surface-3); color: var(--muted); border-color: var(--border); }
+
+.sc-reward { margin-left: auto; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.rp { color: var(--green); }
+.rn { color: var(--red); }
+.r0 { color: var(--muted); }
+.rh { color: var(--green); }
+.rm { color: var(--yellow); }
+.rl { color: var(--red); }
+
+/* card sections */
+.sc-sect { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.sc-sect:last-child { border-bottom: none; }
+
+/* data tables */
+.dtable { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+.dtable th { text-align:left; padding: 3px 8px; color: var(--muted); font-weight:500;
+  border-bottom: 1px solid var(--border); font-size: 11px; }
+.dtable td { padding: 3px 8px; color: var(--text); }
+.dtable tr:hover td { background: var(--surface-2); }
+.anomaly { color: var(--red) !important; font-weight: 600; }
+.warn    { color: var(--yellow) !important; }
+.good    { color: var(--green) !important; }
+
+/* config kv */
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px;
+  font-family: var(--mono); font-size: 12px; }
+.kv-k { color: var(--muted); }
+.kv-v { color: var(--text); }
+
+/* score */
+.score-row { display: flex; align-items: center; gap: 14px; }
+.score-num  { font-size: 26px; font-weight: 700; font-family: var(--mono); }
+.score-bars { flex: 1; }
+.bar-track  { height: 5px; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+.bar-fill   { height: 100%; border-radius: 99px; transition: width .5s ease; }
+.bar-lbl    { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* feedback */
+.fb-text { font-size: 13px; color: var(--muted); font-style: italic; line-height: 1.5; }
+
+/* footer buttons */
+.sc-foot { display: flex; gap: 6px; padding: 9px 14px; flex-wrap: wrap; }
+.btn-g {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 3px 10px; border-radius: var(--r-sm); font-size: 12px;
+  cursor: pointer; transition: all .12s; font-family: inherit;
+}
+.btn-g:hover { border-color: var(--border-hi); color: var(--text); background: var(--surface-2); }
+
+/* annotation */
+.ann-box { padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2); }
+.ann-lbl { font-size: 10px; text-transform: uppercase; letter-spacing:.6px;
+  color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.ann-ta {
+  width: 100%; background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text); padding: 7px 9px;
+  font-size: 13px; font-family: inherit; resize: none; outline: none;
+}
+.ann-ta:focus { border-color: var(--border-hi); }
+
+/* debug */
+.dbg-block { padding: 10px 14px; border-top: 1px solid var(--border); background: #080808; }
+.dbg-pre   { font-family: var(--mono); font-size: 11px; color: #86efac;
+  white-space: pre; overflow-x: auto; max-height: 180px; }
+
+/* loading */
+#loading { display: flex; align-items: center; gap: 10px; color: var(--muted);
+  font-size: 13px; padding: 16px 0; }
+.spinner { width:15px; height:15px; border:2px solid var(--border);
+  border-top-color: var(--blue); border-radius:50%; animation: spin .65s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Action bar ──────────────────────────────────────────── */
+#action-bar {
+  border-top: 1px solid var(--border); background: var(--surface);
+  flex-shrink: 0;
+}
+#ab-inner { max-width: 740px; margin: 0 auto; padding: 12px 20px; }
+
+.pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pills-lbl { font-size: 10px; text-transform: uppercase; letter-spacing:.6px;
+  color: var(--muted); font-weight: 600; margin-right: 2px; }
+.pill {
+  border: 1px solid var(--border); background: transparent; color: var(--muted);
+  padding: 5px 12px; border-radius: var(--r-sm); font-size: 12px;
+  cursor: pointer; transition: all .12s; font-family: inherit;
+}
+.pill:hover:not(:disabled) { border-color: var(--border-hi); color: var(--text); }
+.pill:disabled { opacity: .35; cursor: not-allowed; }
+.pill.inspect.on { background: var(--blue-dim);  border-color: var(--blue);  color: var(--blue); }
+.pill.submit.on  { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+
+#diag-form { margin-top: 10px; display: flex; gap: 8px; }
+#diag-form textarea {
+  flex: 1; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text); padding: 7px 10px;
+  font-size: 13px; font-family: inherit; resize: none; outline: none;
+}
+#diag-form textarea:focus { border-color: var(--border-hi); }
+#diag-form textarea::placeholder { color: var(--subtle); }
+
+.ab-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+#ab-hint { font-size: 12px; color: var(--muted); }
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--blue); color: #fff; border: none;
+  padding: 8px 20px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .12s;
+}
+.btn-primary:hover { opacity: .85; }
+
+#step-btn {
+  background: var(--blue); color: #fff; border: none;
+  padding: 7px 18px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500; font-family: var(--mono);
+  cursor: pointer; transition: opacity .12s; min-width: 82px;
+}
+#step-btn:hover:not(:disabled) { opacity: .85; }
+#step-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+#new-btn {
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  padding: 5px 13px; border-radius: var(--r-sm); font-size: 13px; cursor: pointer;
+}
+#new-btn:hover { border-color: var(--border-hi); background: var(--surface-3); }
+
+.hidden { display: none !important; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header id="header">
+    <div>
+      <span class="logo">WhyDidItFail</span>
+      <span class="logo-sub">Playground</span>
+    </div>
+    <div class="header-right">
+      <div id="session-info" class="hidden">
+        <span id="step-counter">Step 0</span>
+        <span id="session-spill" class="spill spill-active">Active</span>
+      </div>
+      <button id="new-btn" onclick="newSession()">↺ New Session</button>
+    </div>
+  </header>
+
+  <!-- Scroll area -->
+  <main id="main">
+    <div id="empty">
+      <div class="empty-icon">⚡</div>
+      <h2>ML Training Debugger</h2>
+      <p>Inspect logs, config, and gradients to diagnose a failed training run.</p>
+      <button class="btn-primary" onclick="newSession()">Start Session</button>
+    </div>
+
+    <div id="task-banner" class="hidden">
+      <div class="task-card">
+        <div class="tiny-label">Task</div>
+        <p id="task-text"></p>
+        <div class="task-meta" id="task-meta"></div>
+      </div>
+    </div>
+
+    <div id="timeline"></div>
+
+    <div id="loading" class="hidden" style="padding-left:40px;">
+      <div class="spinner"></div>
+      <span>Processing...</span>
+    </div>
+  </main>
+
+  <!-- Action bar -->
+  <footer id="action-bar">
+    <div id="ab-inner">
+      <div class="pills">
+        <span class="pills-lbl">Action</span>
+        <button class="pill inspect" data-a="inspect_logs"      onclick="pick('inspect_logs')"      disabled>Inspect Logs</button>
+        <button class="pill inspect" data-a="inspect_config"    onclick="pick('inspect_config')"    disabled>Inspect Config</button>
+        <button class="pill inspect" data-a="inspect_gradients" onclick="pick('inspect_gradients')" disabled>Inspect Gradients</button>
+        <button class="pill submit"  data-a="submit_diagnosis"  onclick="pick('submit_diagnosis')"  disabled>Submit Diagnosis</button>
+      </div>
+      <div id="diag-form" class="hidden">
+        <textarea id="diag-in"  placeholder="Root cause diagnosis…" rows="2"></textarea>
+        <textarea id="fix-in"   placeholder="Suggested fix…"        rows="2"></textarea>
+      </div>
+      <div class="ab-foot">
+        <span id="ab-hint">Start a session to begin</span>
+        <button id="step-btn" onclick="step()" disabled>Step →</button>
+      </div>
+    </div>
+  </footer>
+
+</div>
+<script>
+// ── state ─────────────────────────────────────────────────────────────
+const S = { active: false, done: false, steps: 0, action: null };
+
+// ── api ───────────────────────────────────────────────────────────────
+async function apiReset() {
+  const r = await fetch('/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+  if (!r.ok) throw new Error(`/reset ${r.status}`);
+  return r.json();
+}
+async function apiStep(body) {
+  const r = await fetch('/step', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`/step ${r.status}`);
+  return r.json();
+}
+
+// ── new session ───────────────────────────────────────────────────────
+async function newSession() {
+  setLoading(true);
+  try {
+    const data = await apiReset();
+    const obs  = data.observation ?? data;
+
+    Object.assign(S, { active:true, done:false, steps:0, action:null });
+
+    // clear
+    document.getElementById('empty').classList.add('hidden');
+    document.getElementById('timeline').innerHTML = '';
+    document.querySelectorAll('.pill').forEach(p => { p.disabled = false; p.classList.remove('on'); });
+    document.getElementById('diag-form').classList.add('hidden');
+    document.getElementById('diag-in').value = '';
+    document.getElementById('fix-in').value  = '';
+    document.getElementById('step-btn').disabled = true;
+    pick(null);
+
+    // task banner
+    const desc = obs.task_description ?? '';
+    document.getElementById('task-text').textContent = desc;
+    const diff = (desc.match(/Difficulty:\s*(\w+)/i) ?? [])[1]?.toLowerCase() ?? '';
+    document.getElementById('task-meta').innerHTML = diff
+      ? `<span class="badge badge-inspect" style="font-family:inherit">${diff}</span>` : '';
+    document.getElementById('task-banner').classList.remove('hidden');
+
+    // session header
+    document.getElementById('session-info').classList.remove('hidden');
+    refreshHeader();
+
+    // hint card
+    addStartCard(obs.visible_data?.hint ?? obs.feedback ?? 'Investigation started.');
+    hint('Select an action to inspect the training run');
+
+  } catch(e) { hint('Error: ' + e.message); }
+  finally { setLoading(false); }
+}
+
+// ── step ──────────────────────────────────────────────────────────────
+async function step() {
+  if (!S.action || S.done) return;
+
+  const body = { action_type: S.action };
+  if (S.action === 'submit_diagnosis') {
+    const d = document.getElementById('diag-in').value.trim();
+    if (!d) { hint('⚠ Diagnosis required'); return; }
+    body.diagnosis    = d;
+    const f = document.getElementById('fix-in').value.trim();
+    if (f) body.suggested_fix = f;
+  }
+
+  setLoading(true);
+  pills(false);
+  document.getElementById('step-btn').disabled = true;
+
+  try {
+    const data = await apiStep(body);
+    const obs    = data.observation ?? data;
+    const reward = data.reward   ?? obs.reward ?? 0;
+    const done   = data.done     ?? obs.done   ?? false;
+
+    S.steps++;
+    S.done = done;
+    addStepCard(S.steps, body, obs, reward, done);
+    refreshHeader();
+
+    if (done) {
+      hint('Episode complete — start a new session to try again');
+      pills(false);
+      const sp = document.getElementById('session-spill');
+      sp.className = 'spill ' + (reward >= 0.7 ? 'spill-active' : reward >= 0.4 ? 'spill-done' : 'spill-error');
+      sp.textContent = reward >= 0.7 ? 'Solved' : 'Done';
+    } else {
+      pick(null);
+      pills(true);
+      document.getElementById('diag-in').value = '';
+      document.getElementById('fix-in').value  = '';
+      hint('Good. Choose your next action.');
+    }
+
+    // scroll down
+    const m = document.getElementById('main');
+    setTimeout(() => m.scrollTo({ top: m.scrollHeight, behavior:'smooth' }), 60);
+
+  } catch(e) {
+    hint('Error: ' + e.message);
+    pills(true);
+    document.getElementById('step-btn').disabled = false;
+  } finally { setLoading(false); }
+}
+
+// ── pill selection ────────────────────────────────────────────────────
+function pick(a) {
+  S.action = a;
+  document.querySelectorAll('.pill').forEach(p => p.classList.toggle('on', p.dataset.a === a));
+  document.getElementById('diag-form').classList.toggle('hidden', a !== 'submit_diagnosis');
+  document.getElementById('step-btn').disabled = !a;
+  if (a && a !== 'submit_diagnosis') {
+    const labels = { inspect_logs:'Inspect training logs', inspect_config:'Inspect hyperparameter config', inspect_gradients:'Inspect gradient norms' };
+    hint(labels[a] ?? a);
+  } else if (a === 'submit_diagnosis') {
+    hint('Fill in diagnosis + optional fix, then Step');
+  }
+}
+
+// ── start card ────────────────────────────────────────────────────────
+function addStartCard(msg) {
+  const tl = document.getElementById('timeline');
+  const card = mkCard('start', '', 'start');
+  const head = card.querySelector('.sc-head');
+  const num = head.querySelector('.sc-num'); num.textContent = 'Start';
+  const badge = mkEl('span', 'badge badge-start', 'session reset'); head.appendChild(badge);
+  const body = card.querySelector('.sc-body');
+  const sect = mkEl('div', 'sc-sect');
+  const fb   = mkEl('div', 'fb-text', msg); sect.appendChild(fb); body.appendChild(sect);
+  tl.appendChild(card);
+}
+
+// ── step card ─────────────────────────────────────────────────────────
+function addStepCard(n, action, obs, reward, done) {
+  const tl   = document.getElementById('timeline');
+  const isS  = action.action_type === 'submit_diagnosis';
+  const dot  = done && reward >= 0.7 ? 'success' : isS ? (reward < 0.4 ? 'fail' : 'submit') : reward < 0 ? 'fail' : 'inspect';
+  const card = mkCard(n, action.action_type, dot);
+  const body = card.querySelector('.sc-body');
+
+  // header badges
+  const head = card.querySelector('.sc-head');
+  const ab   = mkEl('span', `badge ${isS ? 'badge-submit' : 'badge-inspect'}`, action.action_type.replace(/_/g,' '));
+  const rb   = mkEl('span', 'sc-reward ' + rewardCls(reward, isS),
+    isS ? `Score: ${reward.toFixed(2)}` : (reward > 0 ? `+${reward.toFixed(2)}` : reward.toFixed(2)));
+  head.appendChild(ab); head.appendChild(rb);
+
+  // data section
+  const vd = obs.visible_data ?? {};
+  if (!isS && Object.keys(vd).length) {
+    const sect = mkEl('div', 'sc-sect');
+    const lbl  = mkEl('div', 'tiny-label', dataLabel(action.action_type));
+    lbl.style.marginBottom = '8px';
+    sect.appendChild(lbl);
+    sect.appendChild(renderData(vd, action.action_type));
+    body.appendChild(sect);
+  }
+
+  // submitted diagnosis / fix
+  if (isS && (action.diagnosis || action.suggested_fix)) {
+    const sect = mkEl('div', 'sc-sect');
+    if (action.diagnosis) {
+      sect.appendChild(mkEl('div', 'tiny-label', 'Diagnosis'));
+      const t = mkEl('div', '', action.diagnosis);
+      t.style.cssText = 'font-size:13px;margin-top:4px;';
+      sect.appendChild(t);
+    }
+    if (action.suggested_fix) {
+      const fl = mkEl('div', 'tiny-label', 'Suggested Fix');
+      fl.style.marginTop = '10px'; sect.appendChild(fl);
+      const t = mkEl('div', '', action.suggested_fix);
+      t.style.cssText = 'font-size:13px;color:var(--muted);margin-top:4px;';
+      sect.appendChild(t);
+    }
+    body.appendChild(sect);
+  }
+
+  // score bar (submit only)
+  if (isS) {
+    const sect = mkEl('div', 'sc-sect');
+    sect.appendChild(mkEl('div', 'tiny-label', 'Score'));
+    const row  = mkEl('div', 'score-row'); row.style.marginTop = '8px';
+    const num  = mkEl('span', 'score-num', reward.toFixed(2));
+    num.style.color = rewardColor(reward);
+    const bars = mkEl('div', 'score-bars');
+    const trk  = mkEl('div', 'bar-track');
+    const fil  = mkEl('div', 'bar-fill');
+    fil.style.width = `${Math.round(reward*100)}%`;
+    fil.style.background = rewardColor(reward);
+    trk.appendChild(fil); bars.appendChild(trk);
+    bars.appendChild(mkEl('div', 'bar-lbl', reward >= 0.8 ? 'Excellent' : reward >= 0.5 ? 'Partial credit' : 'Incorrect'));
+    row.appendChild(num); row.appendChild(bars); sect.appendChild(row); body.appendChild(sect);
+  }
+
+  // feedback
+  if (obs.feedback) {
+    const sect = mkEl('div', 'sc-sect');
+    sect.appendChild(mkEl('div', 'tiny-label', 'Feedback'));
+    const fb = mkEl('div', 'fb-text', obs.feedback); fb.style.marginTop = '4px';
+    sect.appendChild(fb); body.appendChild(sect);
+  }
+
+  // footer
+  const foot = mkEl('div', 'sc-foot');
+  const dbgBtn = mkEl('button', 'btn-g', 'View Debug Data');
+  dbgBtn.onclick = () => toggleDbg(n, action, obs, reward, done);
+  foot.appendChild(dbgBtn);
+  if (!isS) {
+    const dBtn = mkEl('button', 'btn-g', '+ Add Diagnosis');
+    dBtn.onclick = () => toggleAnn(n, 'diagnosis', dBtn);
+    const fBtn = mkEl('button', 'btn-g', '+ Suggest Fix');
+    fBtn.onclick = () => toggleAnn(n, 'fix', fBtn);
+    foot.appendChild(dBtn); foot.appendChild(fBtn);
+  }
+  body.appendChild(foot);
+
+  // annotation container
+  const annC = mkEl('div', 'hidden'); annC.id = `ann-${n}`; body.appendChild(annC);
+
+  // debug container
+  const dbgC = mkEl('div', 'hidden'); dbgC.id = `dbg-${n}`;
+  const dbgB = mkEl('div', 'dbg-block');
+  const pre  = mkEl('pre', 'dbg-pre', JSON.stringify({ action, observation:obs, reward, done }, null, 2));
+  dbgB.appendChild(pre); dbgC.appendChild(dbgB); body.appendChild(dbgC);
+
+  tl.appendChild(card);
+}
+
+// ── render data ───────────────────────────────────────────────────────
+function renderData(vd, actionType) {
+  if (actionType === 'inspect_logs'      && vd.training_logs)   return logsTable(vd.training_logs);
+  if (actionType === 'inspect_config'    && vd.config)           return kvGrid(vd.config);
+  if (actionType === 'inspect_gradients' && vd.gradient_norms)   return gradTable(vd.gradient_norms);
+  return kvGrid(vd); // fallback
+}
+
+function logsTable(rows) {
+  if (!rows?.length) return mkEl('span', '', 'No data');
+  const keys = Object.keys(rows[0]).filter(k => k !== 'epoch');
+  const t = document.createElement('table'); t.className = 'dtable';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  ['epoch', ...keys].forEach(k => { const th = document.createElement('th'); th.textContent = k.replace(/_/g,' '); hr.appendChild(th); });
+  thead.appendChild(hr); t.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    ['epoch', ...keys].forEach(k => {
+      const td = document.createElement('td');
+      const v  = row[k]; const s = v == null ? '—' : String(v);
+      td.textContent = s;
+      const lo = s.toLowerCase();
+      if (lo === 'nan' || lo === 'inf' || lo === '-inf') td.className = 'anomaly';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody); return t;
+}
+
+function gradTable(rows) {
+  if (!rows?.length) return mkEl('span', '', 'No data');
+  const keys = Object.keys(rows[0]).filter(k => k !== 'step');
+  const t = document.createElement('table'); t.className = 'dtable';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  ['step', ...keys].forEach(k => { const th = document.createElement('th'); th.textContent = k.replace(/_/g,' '); hr.appendChild(th); });
+  thead.appendChild(hr); t.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    ['step', ...keys].forEach(k => {
+      const td = document.createElement('td');
+      const v  = row[k]; const s = v == null ? '—' : String(v); const n = parseFloat(v);
+      td.textContent = s;
+      if (k !== 'step' && !isNaN(n)) {
+        if (n > 10) td.className = 'anomaly';
+        else if (n < 0.001) td.className = 'warn';
+        else td.className = 'good';
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody); return t;
+}
+
+function kvGrid(obj) {
+  const g = mkEl('div', 'kv');
+  Object.entries(obj).forEach(([k, v]) => {
+    g.appendChild(mkEl('span', 'kv-k', k.replace(/_/g,' ')));
+    g.appendChild(mkEl('span', 'kv-v', typeof v === 'object' ? JSON.stringify(v) : String(v)));
+  });
+  return g;
+}
+
+// ── annotation toggle ─────────────────────────────────────────────────
+function toggleAnn(n, type, btn) {
+  const c = document.getElementById(`ann-${n}`);
+  const existing = c.querySelector(`[data-type="${type}"]`);
+  if (existing) { existing.remove(); if (!c.children.length) c.classList.add('hidden'); return; }
+  const box = mkEl('div', 'ann-box'); box.dataset.type = type;
+  box.appendChild(mkEl('div', 'ann-lbl', type === 'diagnosis' ? 'Diagnosis Note' : 'Fix Note'));
+  const ta = document.createElement('textarea'); ta.className = 'ann-ta'; ta.rows = 2;
+  ta.placeholder = type === 'diagnosis' ? 'What do you think caused this?' : 'What would fix it?';
+  box.appendChild(ta); c.appendChild(box); c.classList.remove('hidden'); ta.focus();
+}
+
+// ── debug toggle ──────────────────────────────────────────────────────
+function toggleDbg(n) {
+  document.getElementById(`dbg-${n}`).classList.toggle('hidden');
+}
+
+// ── helpers ───────────────────────────────────────────────────────────
+function mkCard(n, actionType, dotClass) {
+  const card  = document.createElement('div'); card.className = 'sc'; card.id = `sc-${n}`;
+  const aside = mkEl('div', 'sc-aside');
+  const dot   = mkEl('div', `sc-dot ${dotClass}`);
+  const line  = mkEl('div', 'sc-line');
+  aside.appendChild(dot); aside.appendChild(line);
+  const body = mkEl('div', 'sc-body');
+  const head = mkEl('div', 'sc-head');
+  const num  = mkEl('span', 'sc-num', typeof n === 'number' ? `#${n}` : n);
+  head.appendChild(num); body.appendChild(head);
+  card.appendChild(aside); card.appendChild(body);
+  return card;
+}
+
+function mkEl(tag, cls, txt) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (txt !== undefined) el.textContent = txt;
+  return el;
+}
+
+function rewardCls(r, isSubmit) {
+  if (isSubmit) return r >= 0.7 ? 'rh' : r >= 0.4 ? 'rm' : 'rl';
+  return r > 0 ? 'rp' : r < 0 ? 'rn' : 'r0';
+}
+
+function rewardColor(r) {
+  return r >= 0.7 ? 'var(--green)' : r >= 0.4 ? 'var(--yellow)' : 'var(--red)';
+}
+
+function dataLabel(a) {
+  return { inspect_logs:'Training Logs', inspect_config:'Hyperparameter Config', inspect_gradients:'Gradient Norms' }[a] ?? 'Data';
+}
+
+function setLoading(v)  { document.getElementById('loading').classList.toggle('hidden', !v); }
+function pills(enable)  { document.querySelectorAll('.pill').forEach(p => p.disabled = !enable); }
+function hint(msg)      { document.getElementById('ab-hint').textContent = msg; }
+function refreshHeader() {
+  document.getElementById('step-counter').textContent = `Step ${S.steps}`;
+}
+</script>
+</body>
+</html>
