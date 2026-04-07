@@ -57,19 +57,21 @@ def _diagnosis_score(diagnosis: str, scenario: dict) -> float:
     d = diagnosis.strip().lower()
 
     score = 0.0
+    exact_matched = False
 
     # exact keyword matches (strong signal)
     for kw in EXACT_KEYWORDS.get(correct, [correct]):
         if kw in d:
             score += 0.4
+            exact_matched = True
 
     # category matches (weaker signal)
     for kw in CATEGORY_KEYWORDS.get(correct, []):
         if kw in d:
             score += 0.1
 
-    # penalize vague answers
-    if len(d.split()) < 3:
+    # penalize vague answers only when no exact match found
+    if not exact_matched and len(d.split()) < 3:
         score -= 0.1
 
     return max(0.0, min(0.7, score))
@@ -108,7 +110,7 @@ def _evidence_diagnosis_penalty(
 def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     """
     +0.08 per required source inspected  (max +0.24 for 3 sources)
-    −0.06 per required source NOT inspected at submit time
+    −0.10 for each required source NOT inspected at submit time
     −0.02 per irrelevant source inspected
     Clamped to [−0.15, +0.25].
     """
@@ -117,16 +119,20 @@ def _evidence_score(inspection_order: list[str], required: set[str]) -> float:
     missing    = required - inspected_set
     irrelevant = inspected_set - required
 
-    score = (len(relevant) * 0.08) - (len(missing) * 0.06) - (len(irrelevant) * 0.02)
+    score = (len(relevant) * 0.08) - (len(missing) * 0.10) - (len(irrelevant) * 0.02)
     return max(-0.15, min(0.25, score))
 
 
 def _efficiency_score(steps_taken: int, min_steps: int) -> float:
     """
-    0.15 at minimum steps, decays −0.025 per extra step, floor 0.0.
+    0.15 at minimum steps.
+    Decays for extra steps (wasted) or missing steps (early submission).
     min_steps = number of required sources + 1 (the submit action).
     """
-    extra_steps = max(0, steps_taken - min_steps)
+    if steps_taken < min_steps:
+        missing_steps = min_steps - steps_taken
+        return max(0.0, 0.15 - 0.05 * missing_steps)
+    extra_steps = steps_taken - min_steps
     penalty = 0.02 * (extra_steps ** 1.2)
     return max(0.0, 0.15 - penalty)
 

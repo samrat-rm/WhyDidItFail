@@ -1,6 +1,6 @@
 ---
-title: Whydiditfail Environment Server
-emoji: 📠
+title: WhyDidItFail Environment Server
+emoji: 🔍
 colorFrom: red
 colorTo: indigo
 sdk: docker
@@ -11,245 +11,141 @@ tags:
   - openenv
 ---
 
-# Whydiditfail Environment
+# WhyDidItFail — ML Training Failure Diagnosis Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+An OpenEnv environment where an AI agent must diagnose why a machine learning training run failed. The agent inspects logs, configs, and gradient statistics to identify the root cause and suggest a fix.
 
-## Quick Start
+## Overview
 
-The simplest way to use the Whydiditfail environment is through the `WhydiditfailEnv` class:
+Real ML engineers spend significant time debugging failed training runs. This environment simulates that workflow: the agent receives partial observability (it must decide what to inspect) and must reason sequentially from evidence to diagnosis.
 
-```python
-from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
+**12 realistic failure modes** across 3 difficulty tiers:
+- **Easy**: identify failure from training logs only (loss/accuracy curves)
+- **Medium**: identify failure from logs + hyperparameter config
+- **Hard**: identify failure from logs + config + gradient norm data, and provide a concrete fix
 
-try:
-    # Create environment from Docker image
-    WhyDidItFailenv = WhydiditfailEnv.from_docker_image("WhyDidItFail-env:latest")
+## Failure Modes
 
-    # Reset
-    result = WhyDidItFailenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
+| Category | Failure Mode |
+|---|---|
+| Optimization | exploding gradients, vanishing gradients, learning rate too high/low |
+| Regularization | overfitting, missing regularization |
+| Architecture | dying relu, bad weight initialization |
+| Configuration | optimizer misconfiguration, batch size too small, lr scheduler misconfiguration |
 
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
+## Action Space
 
-    for msg in messages:
-        result = WhyDidItFailenv.step(WhyDidItFailAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
+| Action | Description |
+|---|---|
+| `inspect_logs` | View training/validation loss and accuracy curves by epoch |
+| `inspect_config` | View hyperparameter config (lr, optimizer, batch size, dropout, etc.) |
+| `inspect_gradients` | View gradient norm statistics by layer and epoch |
+| `submit_diagnosis` | Submit final diagnosis with label, suggested fix, and reasoning |
 
-finally:
-    # Always clean up
-    WhyDidItFailenv.close()
-```
+## Observation Space
 
-That's it! The `WhydiditfailEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
+Each step returns a `WhyDidItFailObservation` with:
+- `task_description` — the current task objective
+- `visible_data` — data returned by the last inspect action (JSON)
+- `feedback` — partial progress hint (e.g. which sources still need inspection)
+- `steps_taken` — step counter
+- `reward` — step-level reward
+- `done` — episode termination flag
 
-## Building the Docker Image
+## Reward Function
 
-Before using the environment, you need to build the Docker image:
+Rewards are provided throughout the episode, not just at completion:
 
-```bash
-# From project root
-docker build -t WhyDidItFail-env:latest -f server/Dockerfile .
-```
+| Component | Weight | Signal |
+|---|---|---|
+| Diagnosis score | 0.70 | Correct failure mode label (exact match = 0.40 base, fuzzy = 0.10 per category keyword) |
+| Evidence score | 0.15 | Inspected required sources; penalizes missing or irrelevant inspections |
+| Efficiency score | 0.15 | Minimal steps to diagnosis; decays for wasted actions |
+| Fix bonus | +0.15 | Keyword match on suggested fix (capped at 1.0 total) |
 
-## Deploying to Hugging Face Spaces
+Step-level rewards during inspection: +0.10 / +0.07 / +0.05 for each required source discovered (decaying). Re-inspection: −0.05. Irrelevant inspection: −0.03.
 
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
+## Tasks
 
-```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
+### Task 1 — Easy (`task_easy`)
+- **Objective**: Identify the failure mode from training logs only
+- **Required sources**: `logs`
+- **Max steps**: 10
+- **Failure modes**: exploding gradients, learning rate too high, overfitting, underfitting
 
-# Or specify options
-openenv push --namespace my-org --private
-```
+### Task 2 — Medium (`task_medium`)
+- **Objective**: Identify the failure mode from logs + hyperparameter config
+- **Required sources**: `logs`, `config`
+- **Max steps**: 15
+- **Failure modes**: learning rate too low, missing regularization, batch size too small, optimizer misconfiguration
 
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
+### Task 3 — Hard (`task_hard`)
+- **Objective**: Identify failure mode from logs + config + gradients, and provide a concrete fix
+- **Required sources**: `logs`, `config`, `gradients`
+- **Max steps**: 20
+- **Failure modes**: vanishing gradients, dying relu, bad weight initialization, lr scheduler misconfiguration
 
-### Prerequisites
+## Baseline Performance (Qwen/Qwen2.5-72B-Instruct)
 
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
+| Task | Avg Score | Pass Rate |
+|---|---|---|
+| Easy | ~0.85 | ~80% |
+| Medium | ~0.92 | ~100% |
+| Hard | ~0.93 | ~100% |
 
-### Options
+## Setup
 
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
+### Environment Variables
 
-### Examples
-
-```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
-
-### Action
-**WhyDidItFailAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**WhyDidItFailObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
-If you already have a Whydiditfail environment server running, you can connect directly:
-
-```python
-from WhyDidItFail import WhydiditfailEnv
-
-# Connect to existing server
-WhyDidItFailenv = WhydiditfailEnv(base_url="<ENV_HTTP_URL_HERE>")
-
-# Use as normal
-result = WhyDidItFailenv.reset()
-result = WhyDidItFailenv.step(WhyDidItFailAction(message="Hello!"))
-```
-
-Note: When connecting to an existing server, `WhyDidItFailenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
-The client supports context manager usage for automatic connection management:
-
-```python
-from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
-
-# Connect with context manager (auto-connects and closes)
-with WhydiditfailEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(WhyDidItFailAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
-```
-
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    WhydiditfailEnvironment,  # Pass class, not instance
-    WhyDidItFailAction,
-    WhyDidItFailObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
-)
-```
-
-Then multiple clients can connect simultaneously:
-
-```python
-from WhyDidItFail import WhyDidItFailAction, WhydiditfailEnv
-from concurrent.futures import ThreadPoolExecutor
-
-def run_episode(client_id: int):
-    with WhydiditfailEnv(base_url="http://localhost:8000") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(WhyDidItFailAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
-
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
-```
-
-## Development & Testing
-
-### Direct Environment Testing
-
-Test the environment logic directly without starting the HTTP server:
-
-```bash
-# From the server directory
-python3 server/WhyDidItFail_environment.py
-```
-
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
+| Variable | Default | Required |
+|---|---|---|
+| `HF_TOKEN` | — | Yes (mandatory) |
+| `API_BASE_URL` | `https://router.huggingface.co/v1` | No |
+| `MODEL_NAME` | `Qwen/Qwen2.5-72B-Instruct` | No |
+| `SERVER_URL` | `http://localhost:8000` | No |
 
 ### Running Locally
 
-Run the server locally for development:
+```bash
+# Install dependencies
+uv sync
+
+# Start the environment server
+uvicorn server.app:app --reload
+
+# Run inference (in another terminal)
+HF_TOKEN=your_token uv run python inference.py
+```
+
+### Docker
 
 ```bash
-uvicorn server.app:app --reload
+docker build -t whydiditfail-env:latest .
+docker run -p 8000:8000 whydiditfail-env:latest
 ```
 
 ## Project Structure
 
 ```
 WhyDidItFail/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # WhydiditfailEnv client
-├── models.py              # Action and Observation models
+├── inference.py                    # Baseline inference script
+├── client.py                       # WhyDidItFailEnv client (WebSocket)
+├── models.py                       # Action and Observation Pydantic models
+├── openenv.yaml                    # OpenEnv manifest
+├── Dockerfile                      # Container image
 └── server/
-    ├── __init__.py        # Server module exports
-    ├── WhyDidItFail_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+    ├── WhyDidItFail_environment.py # Core environment logic (step/reset/state)
+    ├── app.py                      # FastAPI server (HTTP + WebSocket)
+    ├── scenarios.py                # 12 scenario definitions
+    ├── graders.py                  # Programmatic grader
+    └── llm_judge.py                # LLM-based reasoning quality judge
 ```
+
+## OpenEnv Spec Compliance
+
+- Typed `Action`, `Observation` Pydantic models ✓
+- `step(action)` → `(observation, reward, done, info)` ✓
+- `reset()` → initial observation ✓
+- `state()` → current state ✓
+- `openenv.yaml` with 3 tasks and grader definitions ✓
+- Passes `openenv validate` ✓

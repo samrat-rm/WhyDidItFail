@@ -177,10 +177,11 @@ class WhyDidItFailEnvironment(Environment):
         if source in self.inspection_order:
             return f"You already examined the {label}. No new information gained."
         if source in required:
-            remaining = len(set(required) - set(self.inspection_order) - {source})
+            remaining_sources = [s for s in required if s not in self.inspection_order and s != source]
             msg = f"You examined the {label}. Relevant clue found (+{reward:.2f})."
-            if remaining > 0:
-                msg += f" {remaining} required source(s) still unexamined."
+            if remaining_sources:
+                next_source = f"inspect_{remaining_sources[0]}"
+                msg += f" {len(remaining_sources)} required source(s) still unexamined. Next required action: {next_source}."
             return msg
         return f"You examined the {label}. This source is not required for this failure mode."
 

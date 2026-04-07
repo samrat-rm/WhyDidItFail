@@ -1,15 +1,20 @@
+from typing import Literal
+
 from openenv.core.env_server.types import Action, Observation
 from pydantic import Field
 
 
 class WhyDidItFailAction(Action):
     """Agent's diagnostic action."""
-    action_type: str = Field(..., description=
-        "One of: inspect_logs | inspect_config | inspect_gradients | submit_diagnosis")
+    action_type: Literal["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"] = Field(
+        ..., description="One of: inspect_logs | inspect_config | inspect_gradients | submit_diagnosis"
+    )
     diagnosis: str | None = Field(None, description=
         "Required when action_type=submit_diagnosis. Its the agent's conclusion about what is wrong.")
     suggested_fix: str | None = Field(None, description=
-        "TODO: Required for hard task. Exact fix to apply.")
+        "Required when action_type=submit_diagnosis. Exact fix to apply.")
+    reasoning: str | None = Field(None, description=
+        "Required when action_type=submit_diagnosis. Explain what evidence led to this diagnosis.")
 
 
 class WhyDidItFailObservation(Observation):

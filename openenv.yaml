@@ -5,3 +5,83 @@ runtime: fastapi
 app: server.app:app
 port: 8000
 
+tasks:
+  - id: task_easy
+    difficulty: easy
+    max_steps: 10
+    grader:
+      type: llm
+      prompt_template: |
+        You are evaluating an ML engineer's diagnosis of a failed training run.
+        The agent was given training logs only (no config or gradient data) and must identify the failure mode.
+
+        Valid failure mode labels:
+        - "exploding gradients": loss becomes NaN/inf, gradient norms spike massively
+        - "learning rate too high": loss oscillates wildly epoch-to-epoch (not NaN)
+        - "overfitting": train loss low, val loss rising, regularization already present in config
+        - "underfitting": both train and val loss stay high near random baseline, no gap
+
+        Agent response:
+        {response}
+
+        Score 0.0 to 1.0:
+        - 1.0: Correct failure mode with reasoning that cites specific numeric values from the logs
+        - 0.7: Correct failure mode but reasoning is vague or missing specific numbers
+        - 0.3: Wrong label but description matches a related concept
+        - 0.0: Wrong failure mode or no diagnosis submitted
+
+        Reply with a single float between 0.0 and 1.0. No explanation.
+
+  - id: task_medium
+    difficulty: medium
+    max_steps: 15
+    grader:
+      type: llm
+      prompt_template: |
+        You are evaluating an ML engineer's diagnosis of a failed training run.
+        The agent was given training logs AND hyperparameter config and must identify the failure mode.
+
+        Valid failure mode labels:
+        - "learning rate too low": loss decreases extremely slowly, lr in config is very small (e.g. 1e-6)
+        - "missing regularization": train loss low, val loss rising, config shows weight_decay=0 and dropout=0
+        - "batch size too small": training loss is highly noisy, config shows batch_size <= 4
+        - "optimizer misconfiguration": slow convergence, config shows SGD with momentum=0.0
+
+        Agent response:
+        {response}
+
+        Score 0.0 to 1.0:
+        - 1.0: Correct failure mode with reasoning citing both log values AND config parameters
+        - 0.7: Correct failure mode but reasoning only references logs or config, not both
+        - 0.3: Wrong label but description matches a related concept
+        - 0.0: Wrong failure mode or no diagnosis submitted
+
+        Reply with a single float between 0.0 and 1.0. No explanation.
+
+  - id: task_hard
+    difficulty: hard
+    max_steps: 20
+    grader:
+      type: llm
+      prompt_template: |
+        You are evaluating an ML engineer's diagnosis of a failed training run.
+        The agent was given training logs, hyperparameter config, AND gradient norm data.
+        It must identify the failure mode AND provide a concrete, actionable fix.
+
+        Valid failure mode labels:
+        - "vanishing gradients": gradient norms decay exponentially toward input layers, sigmoid/tanh activation
+        - "dying relu": gradient norms are exactly 0.0 in hidden layers, relu activation
+        - "bad weight initialization": loss is NaN from epoch 1, extreme gradient norms (>10000), bad weight_init config
+        - "lr scheduler misconfiguration": loss spikes when scheduler fires, gamma > 1.0 (lr increases instead of decreasing)
+
+        Agent response:
+        {response}
+
+        Score 0.0 to 1.0:
+        - 1.0: Correct failure mode AND a specific actionable fix addressing the root cause
+        - 0.8: Correct failure mode with a reasonable fix that lacks specifics
+        - 0.5: Correct failure mode but fix is vague, wrong, or missing
+        - 0.2: Wrong failure mode but fix is incidentally relevant
+        - 0.0: Wrong failure mode and no useful fix
+
+        Reply with a single float between 0.0 and 1.0. No explanation.

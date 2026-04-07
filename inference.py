@@ -8,21 +8,25 @@ MANDATORY environment variables:
 
 TASKS
     Task 1 (easy)   — identify failure mode from logs only
-    Task 2 (medium) — identify failure mode from logs + config      [coming soon]
-    Task 3 (hard)   — identify failure mode + provide correct fix   [coming soon]
+    Task 2 (medium) — identify failure mode from logs + config
+    Task 3 (hard)   — identify failure mode + provide correct fix
 
 STDOUT FORMAT
     [START]   task=<task_name> scenarios=<n> model=<model_name>
-    [EPISODE] scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
+    [STEP]    scenario=<key> step=<n> action=<json> reward=<0.00> done=<bool>
     [RESULT]  scenario=<key> score=<0.000> steps=<n> success=<bool>
     [SUMMARY] task=<task_name> avg_score=<0.000> pass_rate=<0.00>
+    [END]     all tasks complete
 """
 
 import asyncio
 import json
 import os
+import sys
 import textwrap
 from typing import List
+
+from websockets.exceptions import ConnectionClosedError
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -30,14 +34,19 @@ load_dotenv()
 from openai import OpenAI
 
 from client import WhyDidItFailEnv
+from server.llm_judge import judge as llm_judge
 from models import WhyDidItFailAction
 from server.scenarios import SCENARIOS
 
 IMAGE_NAME       = os.getenv("IMAGE_NAME", "")
 SERVER_URL       = os.getenv("SERVER_URL", "http://localhost:8000")
-API_KEY          = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+HF_TOKEN         = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+API_KEY          = HF_TOKEN or os.getenv("API_KEY")
 API_BASE_URL     = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME       = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+USE_LOCAL        = os.getenv("USE_LOCAL", "false").lower() == "true"
 MAX_STEPS        = 8
 TEMPERATURE      = 0.3
 MAX_TOKENS       = 256
@@ -61,13 +70,53 @@ SYSTEM_PROMPT = textwrap.dedent("""
       inspect_gradients  — examine gradient norm statistics
       submit_diagnosis   — submit your final diagnosis (ends the episode)
 
-    Respond with a JSON object on a single line. Examples:
-        {"action_type": "inspect_logs"}
-        {"action_type": "submit_diagnosis", "diagnosis": "exploding gradients"}
-        {"action_type": "submit_diagnosis", "diagnosis": "overfitting", "suggested_fix": "add dropout=0.3"}
+    OUTPUT FORMAT — STRICT:
+    Output ONLY a raw JSON object. No markdown, no code fences, no backticks, no explanation.
+    Start with { and end with }. One line only.
 
-    Be efficient — inspect only what you need. Submit when confident.
-    The diagnosis should be a short phrase describing the failure mode.
+    Examples:
+      {"action_type": "inspect_logs"}
+      {"action_type": "submit_diagnosis", "diagnosis": "overfitting", "suggested_fix": "add dropout=0.3 and weight_decay=0.01", "reasoning": "train_loss fell to 0.03 by epoch 20 while val_loss rose to 2.34; train_acc=0.99 vs val_acc=0.54 — clear generalization gap. Config shows dropout=0.0 and weight_decay=0.0."}
+
+    DIAGNOSIS PROCESS — follow this every episode:
+    1. Call inspect_logs first — always.
+    2. Read the Data field carefully. Note the exact numeric values (loss, acc, lr, gradient norms, model).
+    3. If Feedback says "Next required action: inspect_X" — call that action next, no exceptions.
+    4. When no required actions remain, form your diagnosis based ONLY on values you actually saw in Data.
+    5. Your reasoning MUST quote specific numbers from the Data you received (e.g. "val_loss=2.34 at epoch 20, train_acc=0.99"). If you cannot quote a specific number from the Data, you have not read it — do not submit yet.
+
+    LABEL DECISION RULES — use these to pick the exact diagnosis label:
+    - train_loss is NaN from epoch 1 AND config shows extreme weight_init (e.g. std=100) AND gradient norms are massive (>10000) → "bad weight initialization". Check config FIRST before applying the NaN rule below.
+    - train_loss is NaN or inf AFTER at least one finite epoch → "exploding gradients". ABSOLUTE RULE. No other label applies.
+    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) AND config shows batch_size ≤ 4 → "batch size too small" (NOT "learning rate too high"). PRIORITY RULE: check batch_size in config before applying the oscillation → lr rule.
+    - loss oscillates wildly epoch-to-epoch but stays finite (no NaN) AND config shows batch_size > 4 → "learning rate too high"
+    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random baseline ~10%) AND config shows SGD optimizer with momentum=0.0 → "optimizer misconfiguration" (NOT "underfitting"). Check config for SGD momentum before applying the underfitting rule.
+    - both train_loss AND val_loss stay high with no gap (train_acc ≈ val_acc, both near random baseline ~10%) AND config does NOT show SGD with momentum=0.0 → "underfitting". ABSOLUTE RULE. Do NOT wait for gradients. Submit immediately after seeing the logs.
+    - train_loss low, val_loss rising AND config shows weight_decay=0.0 exactly AND dropout=0.0 exactly → "missing regularization" (NOT "overfitting")
+    - train_loss low, val_loss rising AND config shows ANY non-zero weight_decay OR ANY non-zero dropout → "overfitting" (NOT "missing regularization")
+    - gradient norm = 0.0 exactly in hidden layers AND config shows ReLU activation → "dying relu"
+    - gradient norm tiny but nonzero (e.g. 1e-5, 1e-8) AND config EXPLICITLY shows activation=sigmoid or activation=tanh → "vanishing gradients". Do NOT assume activation — it must be stated in the config data you actually received.
+    - config shows lr_scheduler with gamma > 1.0 → "lr scheduler misconfiguration"
+    - config shows weight_init with extreme std AND gradient norms >10000 → "bad weight initialization"
+    - config shows SGD optimizer with momentum=0.0 → "optimizer misconfiguration"
+
+    NULL DATA RULE:
+    - If Data shows {"gradient_norms": null}, gradient data was NOT collected for this run. This is normal for some scenarios — it is NOT a data pipeline error.
+    - "missing data", "missing gradients", "insufficient data" are NEVER valid diagnoses. NEVER submit these. Always diagnose the ML failure mode from what you have seen.
+
+    STOP RULES — mandatory:
+    - "This source is not required for this failure mode." means STOP IMMEDIATELY. Submit your diagnosis on the very next action. Do NOT call any more inspect actions — not even one.
+    - "Relevant clue found" with no "Next required action" → all sources covered. Submit on the next action.
+    - CRITICAL: If Feedback contains "Next required action: inspect_X", you MUST call that action before submitting.
+
+    RULES:
+    - submit_diagnosis MUST include all three fields: diagnosis, suggested_fix, reasoning.
+    - diagnosis is the short failure mode label — it is REQUIRED, never omit it.
+    - Use exact failure mode phrasing for diagnosis: "exploding gradients", "overfitting", "underfitting",
+      "learning rate too high", "learning rate too low", "vanishing gradients",
+      "dying relu", "missing regularization", "batch size too small",
+      "optimizer misconfiguration", "bad weight initialization", "lr scheduler misconfiguration".
+    - Never inspect the same source twice.
 """).strip()
 
 
@@ -82,6 +131,8 @@ def _user_prompt(step: int, obs_summary: str, history: List[str]) -> str:
         Recent history:
         {history_block}
 
+        Before responding: read the Data above carefully. What specific numeric values do you see?
+        Quote at least one value from the Data in your reasoning before submitting a diagnosis.
         Respond with a JSON action.
     """).strip()
 
@@ -97,6 +148,11 @@ def _summarize(obs) -> str:
 
 
 def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str]) -> WhyDidItFailAction:
+    if USE_LOCAL:
+        from local_agent import get_action as _local_get_action
+        prompt = f"{SYSTEM_PROMPT}\n\n{_user_prompt(step, obs_summary, history)}"
+        return _local_get_action(step, prompt)
+
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
@@ -106,87 +162,163 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
             ],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
+            response_format={"type": "json_object"},
         )
         text = (completion.choices[0].message.content or "").strip()
-        return WhyDidItFailAction(**json.loads(text))
+        data = json.loads(text)
+        filtered = {k: v for k, v in data.items() if k in WhyDidItFailAction.model_fields}
+        return WhyDidItFailAction(**filtered)
     except Exception as exc:
         print(f"  [DEBUG] parse error: {exc}", flush=True)
         if step <= 2:
-            return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None)
-        return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None)
+            return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None,reasoning=None)
+        return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None,reasoning=None)
 
 # ── episode runner ────────────────────────────────────────────────────────────
 
-async def run_episode(env: WhyDidItFailEnv, client: OpenAI, scenario_key: str) -> dict:
-    """Run one full episode for a specific scenario. Returns result dict."""
-    result   = await env.reset(scenario_key=scenario_key)
+async def _make_env() -> WhyDidItFailEnv:
+    return (
+        await WhyDidItFailEnv.from_docker_image(IMAGE_NAME)
+        if IMAGE_NAME
+        else WhyDidItFailEnv(base_url=SERVER_URL)
+    )
+
+
+async def run_episode(
+    env: WhyDidItFailEnv,
+    client: OpenAI,
+    scenario_key: str,
+    task_name: str,
+    effective_model: str,
+) -> tuple[dict, WhyDidItFailEnv]:
+    """Run one full episode for a specific scenario. Returns (result dict, env).
+    env may be a fresh reconnected instance if the WebSocket dropped between episodes."""
+    try:
+        result = await env.reset(scenario_key=scenario_key)
+    except ConnectionClosedError:
+        print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", file=sys.stderr, flush=True)
+        env = await _make_env()
+        result = await env.reset(scenario_key=scenario_key)
+
+    print(f"[START] task={task_name} env=whydiditfail model={effective_model}", flush=True)
+
     obs      = result.observation
     history: List[str] = []
     rewards: List[float] = []
+    inspection_order: List[str] = []
+    submit_action: WhyDidItFailAction | None = None
+    score    = 0.0
+    success  = False
 
-    for step in range(1, MAX_STEPS + 1):
-        if result.done:
-            break
+    try:
+        for step in range(1, MAX_STEPS + 1):
+            if result.done:
+                break
 
-        action   = _get_action(client, step, _summarize(obs), history)
-        result   = await env.step(action)
-        obs      = result.observation
-        reward   = result.reward or 0.0
-        done     = result.done
-        act_str  = action.model_dump_json(exclude_none=True)
+            action = _get_action(client, step, _summarize(obs), history)
+            try:
+                result = await env.step(action)
+            except ConnectionClosedError as e:
+                print(f"[STEP] step={step} action={action.action_type} reward=0.00 done=true error={e}", flush=True)
+                break
+            obs    = result.observation
+            reward = result.reward or 0.0
+            done   = result.done
+            act_str = action.model_dump_json(exclude_none=True, exclude_defaults=True)
 
-        rewards.append(reward)
-        history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}")
-        print(f"  [EPISODE] scenario={scenario_key} step={step} action={act_str} reward={reward:.2f} done={str(done).lower()}", flush=True)
+            if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
+                source = action.action_type.replace("inspect_", "")
+                if source not in inspection_order:
+                    inspection_order.append(source)
 
-        if done:
-            break
+            if action.action_type == "submit_diagnosis":
+                submit_action = action  # judge runs after loop — WebSocket is closed by then
 
-    # Final score = reward on submit_diagnosis (last reward)
-    score   = rewards[-1] if rewards else 0.0
-    success = score >= SUCCESS_THRESHOLD
-    return {"scenario_key": scenario_key, "score": score, "steps": len(rewards), "success": success}
+            rewards.append(reward)
+            data_seen = json.dumps(obs.visible_data) if obs.visible_data else "{}"
+            history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
+            print(f"[STEP] step={step} action={act_str} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
+
+            if done:
+                break
+
+        # WebSocket is closed — safe to call the judge now
+        keyword_score = rewards[-1] if rewards else 0.0
+        judge_score: float | None = None
+        if submit_action is not None:
+            judge_score = llm_judge(
+                client=client,
+                model=MODEL_NAME,
+                diagnosis=submit_action.diagnosis or "",
+                reasoning=submit_action.reasoning,
+                suggested_fix=submit_action.suggested_fix,
+                scenario=SCENARIOS[scenario_key],
+                inspection_order=inspection_order,
+            )
+        if judge_score is None:
+            score = round(keyword_score, 4)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=sys.stderr, flush=True)
+        else:
+            score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
+            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
+
+        success = score >= SUCCESS_THRESHOLD
+
+    finally:
+        steps_taken = len(rewards)
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
+
+    return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
 
 # ── task runners ──────────────────────────────────────────────────────────────
 
-async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> None:
+async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> List[float]:
     if not scenario_keys:
-        print(f"[SUMMARY] task={task_name} — no scenarios defined yet", flush=True)
-        return
+        print(f"  [INFO]    task={task_name} — no scenarios defined yet", flush=True)
+        return []
 
-    print(f"\n[START] task={task_name} scenarios={len(scenario_keys)} model={MODEL_NAME}", flush=True)
+    if USE_LOCAL:
+        try:
+            from local_agent import LOCAL_MODEL
+            effective_model = LOCAL_MODEL
+        except Exception:
+            effective_model = "local_model"
+    else:
+        effective_model = MODEL_NAME
 
     results = []
     for key in scenario_keys:
-        res = await run_episode(env, client, key)
+        res, env = await run_episode(env, client, key, task_name, effective_model)
         results.append(res)
         print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_rate = sum(1 for r in results if r["success"]) / len(results)
     print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
+    return [r["score"] for r in results]
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
 async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    env = (
-        await WhyDidItFailEnv.from_docker_image(IMAGE_NAME)
-        if IMAGE_NAME
-        else WhyDidItFailEnv(base_url=SERVER_URL)
-    )
+    env = await _make_env()
 
     try:
-        await run_task("easy",   EASY_SCENARIOS,   env, client)
-        await run_task("medium", MEDIUM_SCENARIOS, env, client)
-        await run_task("hard",   HARD_SCENARIOS,   env, client)
+        scores = []
+        scores += await run_task("task_easy",   EASY_SCENARIOS,   env, client)
+        scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
+        scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
+        overall = sum(scores) / len(scores) if scores else 0.0
+        print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
+        print(f"[END] score={overall:.3f}", flush=True)
     finally:
         try:
             await env.close()
         except Exception as e:
-            print(f"[DEBUG] env.close() error: {e}", flush=True)
+            print(f"  [DEBUG]   env.close() error: {e}", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":
