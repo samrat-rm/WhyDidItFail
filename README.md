@@ -367,3 +367,12 @@ WhyDidItFail/
 - `state()` → current state ✓
 - `openenv.yaml` with 3 tasks and grader definitions ✓
 - Passes `openenv validate` ✓
+
+
+#### AI Usage Disclosure
+
+This project was developed with the assistance of AI tools, including Claude and ChatGPT. These tools were used to support tasks such as code generation, documentation drafting, and problem-solving.
+
+All AI-generated content has been carefully reviewed, tested, and validated before being included in this repository. I take full responsibility for the accuracy, functionality, and integrity of the code and documentation provided.
+
+AI assistance was used as a productivity aid, but all final decisions, implementations, and reviews were performed by me to ensure quality and correctness.
