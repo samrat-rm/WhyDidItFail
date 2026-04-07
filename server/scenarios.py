@@ -64,7 +64,7 @@ SCENARIOS: dict[str, dict] = {
         "required_sources": ["logs"],
         "config": {
             "learning_rate": 0.001, "optimizer": "adam",
-            "batch_size": 32, "weight_decay": 0.0, "dropout": 0.0,
+            "batch_size": 32, "weight_decay": 0.001, "dropout": 0.1,
             "architecture": "ResNet50", "dataset": "CIFAR-10",
         },
         "logs": [
@@ -82,7 +82,7 @@ SCENARIOS: dict[str, dict] = {
             {"epoch": 20, "norm": 0.24},
         ],
         "correct_diagnosis": "overfitting",
-        "correct_fix": "add dropout=0.3 and weight_decay=0.01",
+        "correct_fix": "increase dropout to 0.3 and weight_decay to 0.01",
     },
 
     "underfitting": {
