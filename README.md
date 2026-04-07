@@ -1,6 +1,6 @@
 ---
 title: WhyDidItFail Environment Server
-emoji: 🔍
+emoji: 🔬
 colorFrom: red
 colorTo: indigo
 sdk: docker
@@ -11,27 +11,185 @@ tags:
   - openenv
 ---
 
-# WhyDidItFail — ML Training Failure Diagnosis Environment
+![WhyDidITFail_meme](Wdif.png)
 
-An OpenEnv environment where an AI agent must diagnose why a machine learning training run failed. The agent inspects logs, configs, and gradient statistics to identify the root cause and suggest a fix.
+# 🔬 WhyDidItFail — ML Training Failure Diagnosis Environment
 
-## Overview
+> Every dev has been there. It's 2am. Your training run just died. The loss curve looks like a seismograph during an earthquake. You have no idea why. **WhyDidItFail** puts an AI agent in that exact seat — and makes it figure out what went wrong.
 
-Real ML engineers spend significant time debugging failed training runs. This environment simulates that workflow: the agent receives partial observability (it must decide what to inspect) and must reason sequentially from evidence to diagnosis.
+This is a real-world OpenEnv environment where an AI agent must **diagnose failed ML training runs** by inspecting logs, configs, and gradient statistics — then commit to a root cause and a fix. No handholding, no free answers. Just evidence, reasoning, and a score.
 
-**12 realistic failure modes** across 3 difficulty tiers:
-- **Easy**: identify failure from training logs only (loss/accuracy curves)
-- **Medium**: identify failure from logs + hyperparameter config
-- **Hard**: identify failure from logs + config + gradient norm data, and provide a concrete fix
+**Built as a training target for small models (7B–13B).** The action space is constrained, the reward signal is dense, and the failure modes are realistic enough to stress-test any agent that thinks it knows ML.
 
-## Failure Modes
+---
 
-| Category | Failure Mode |
+## How It Works — Episode Lifecycle
+
+```
+reset()
+  └─► Agent receives task description + hint
+        │
+        ▼
+   [inspect_logs]  ──► Observation: training curves (loss, acc per epoch)
+        │                Reward: +0.10 (first required source)
+        ▼
+   [inspect_config] ──► Observation: hyperparams (lr, optimizer, dropout...)
+        │                Reward: +0.07 (second required source)
+        ▼
+   [inspect_gradients] ► Observation: gradient norms by layer
+        │                Reward: +0.05 (third required source)
+        ▼
+   [submit_diagnosis] ──► diagnosis + suggested_fix + reasoning
+                          Reward: 0.0–1.0 (graded on correctness + evidence + efficiency)
+                          done = True
+```
+
+> - Each action reveals a different slice of evidence
+> - Agent must decide what to inspect and when to stop
+> - Submitting too early or too late both cost points
+> - Wrong inspection sources penalize the score
+
+
+---
+
+## Scenarios
+
+### Easy — Logs only
+
+| Scenario | Problem | Description |
+|---|---|---|
+| Exploding Gradients | Loss → NaN | Training loss goes NaN after epoch 2. Gradient norms spike to infinity. The model diverges catastrophically — a classic sign of learning rate being too high or missing gradient clipping. The agent must catch NaN in the logs and label it correctly. |
+| Learning Rate Too High | Oscillating loss | Loss bounces wildly every epoch — goes down, shoots up, never converges. No NaN, just chaos. The optimizer is taking steps so large it overshoots the minimum repeatedly. Batch size is fine; the culprit is the LR. |
+| Overfitting | Val loss climbing | Train loss hits near-zero by epoch 15. Val loss is diverging upward. The config already has regularization (dropout, weight decay) present — so this is true overfitting, not a missing regularization bug. The agent must distinguish these two. |
+| Underfitting | Both losses stuck high | Train accuracy and val accuracy hover near random baseline (~10%) throughout training. No gap between them. The model isn't learning at all — too simple for the task, wrong architecture, or training stopped too early. |
+
+### Medium — Logs + Config
+
+| Scenario | Problem | Description |
+|---|---|---|
+| Learning Rate Too Low | Glacial convergence | Loss is decreasing, but imperceptibly — 0.001 per epoch. The config reveals `lr=1e-6`. The model is technically learning, but so slowly it would take thousands of epochs to converge. The agent needs both the log trend and the config LR to make this call. |
+| Missing Regularization | Overfit without defense | Train loss low, val loss rising — looks like overfitting. But the config shows `weight_decay=0.0` and `dropout=0.0`. This isn't overfitting the model fighting the regularizer — it's the model memorizing because there's no regularizer at all. Label matters here. |
+| Batch Size Too Small | Noisy gradient trajectory | Loss goes down on average but is extremely noisy — spikes and dips every epoch. Config shows `batch_size=2`. With tiny batches, gradient estimates are high-variance: each update is basically random. The agent must connect the noise pattern to the batch size config. |
+| Optimizer Misconfiguration | SGD with no momentum | Loss curves look stuck or very slow. Config shows `optimizer=SGD, momentum=0.0`. SGD without momentum has no gradient averaging — it stalls on saddle points and flat regions. Modern SGD needs momentum to navigate loss landscapes effectively. |
+
+### Hard — Logs + Config + Gradients
+
+| Scenario | Problem | Description |
+|---|---|---|
+| Vanishing Gradients | Gradient decay toward inputs | Gradient norms decay exponentially from output to input layers (e.g. 1e-1 → 1e-8). Config shows sigmoid or tanh activation. These saturating activations crush gradients during backprop. The input layers learn nothing. Agent must read gradient norms by layer and connect to activation choice. |
+| Dying ReLU | Zero gradients in hidden layers | Gradient norms in hidden layers are exactly 0.0 — not small, exactly zero. Config shows ReLU activation and a high learning rate. Neurons have permanently entered the "dead zone" where their pre-activation is always negative, so they never fire or update again. |
+| Bad Weight Initialization | NaN from epoch 1 | Loss is NaN from the very first epoch — before training even begins meaningfully. Gradient norms are astronomically large (>10,000). Config shows an extreme weight initialization std (e.g. 100). Weights so large that the forward pass immediately overflows. |
+| LR Scheduler Misconfiguration | Periodic loss spikes | Training goes fine, then suddenly loss spikes at a predictable interval — every N epochs. Config shows `lr_scheduler=StepLR, gamma=10.0`. Gamma > 1.0 means the scheduler is **increasing** the learning rate at each step, not decreasing it. A subtle config error with dramatic consequences. |
+
+---
+
+## Features
+
+- **12 realistic failure modes** across 3 difficulty tiers — exploding gradients, overfitting, dying ReLU, bad weight initialization, and more
+- **Partial observability** — the agent chooses what to inspect (logs, config, gradients) and must reason from incomplete evidence
+- **Dense reward signal** — step-level rewards during inspection, not just at the end
+- **Dual grading** — programmatic keyword scorer (85%) + LLM reasoning judge (15%)
+- **Multi-component score** — diagnosis correctness, evidence coverage, efficiency, fix quality, and inspection order all contribute
+- **WebSocket environment** — real-time interaction via FastAPI; supports concurrent sessions
+- **Docker-ready** — one command to run the full environment server
+- **Local agent** — smoke test the pipeline without any API key
+
+---
+
+## Grading — The Heart of the Environment ❤️
+
+### Scoring Flow
+
+```
+submit_diagnosis received
+        │
+        ├─► Diagnosis Score     (was the label correct?)
+        │       exact keyword match  → +0.40
+        │       category/fuzzy match → +0.10 per keyword
+        │       vague answer (<3 words) → −0.10
+        │
+        ├─► Evidence Score      (did the agent inspect the right sources?)
+        │       +0.08 per required source inspected
+        │       −0.10 per required source NOT inspected
+        │       −0.02 per irrelevant source inspected
+        │
+        ├─► Evidence-Diagnosis Penalty  (had the clues, drew wrong conclusion?)
+        │       all required sources + wrong diagnosis → −0.10
+        │       some required sources + wrong diagnosis → −0.05
+        │
+        ├─► Efficiency Score    (did the agent act without waste?)
+        │       minimum steps → +0.15
+        │       extra steps   → −0.02 × (extra_steps^1.2)
+        │       early submit  → −0.05 per missing step
+        │
+        ├─► Fix Score           (was the suggested fix actionable?)
+        │       all fix keywords match → +0.15
+        │       ≥60% match → +0.10
+        │       ≥30% match → +0.05
+        │       no fix provided → −0.05
+        │
+        └─► Ordering Bonus      (+0.05 if sources inspected in canonical order)
+                                 logs → config → gradients
+        
+        Total = clamp(sum, 0.0, 1.0)
+```
+
+
+### Score Breakdown Table
+
+| Score Type | Logic | Max Reward | Min Reward |
+|---|---|---|---|
+| Diagnosis | Keyword match on failure mode label | +0.70 | 0.00 |
+| Evidence | Required sources inspected vs missing | +0.25 | −0.15 |
+| Evidence-Diagnosis Penalty | Had evidence but wrong conclusion | 0.00 | −0.10 |
+| Efficiency | Steps taken vs minimum needed | +0.15 | 0.00 |
+| Fix | Keyword match on suggested fix | +0.15 | −0.05 |
+| Ordering Bonus | Canonical inspection order | +0.05 | 0.00 |
+| **Total** | Clamped to [0.0, 1.0] | **1.00** | **0.00** |
+
+### Step-Level Rewards (during inspection)
+
+| Action | Reward |
 |---|---|
-| Optimization | exploding gradients, vanishing gradients, learning rate too high/low |
-| Regularization | overfitting, missing regularization |
-| Architecture | dying relu, bad weight initialization |
-| Configuration | optimizer misconfiguration, batch size too small, lr scheduler misconfiguration |
+| First required source discovered | +0.10 |
+| Second required source discovered | +0.07 |
+| Third required source discovered | +0.05 |
+| Irrelevant source inspected | −0.03 |
+| Re-inspecting a source | −0.05 |
+
+---
+
+## LLM Judge
+
+### What it does
+
+The programmatic grader handles keyword matching — fast and deterministic. The **LLM Judge** runs after the episode ends and evaluates the quality of the agent's *reasoning*: did it actually cite evidence? Was the logic coherent? Did the fix make sense given the diagnosis?
+
+### Judge Flow
+
+```
+submit_diagnosis
+        │
+        ├─► Programmatic grader  (keyword match → score)  85% weight
+        │
+        └─► LLM Judge           (reasoning quality → score)  15% weight
+                │
+                ├── diagnosis + suggested_fix + reasoning + scenario data
+                │
+                └── LLM evaluates:
+                        - Did the agent cite specific numbers from the data?
+                        - Is the reasoning internally consistent?
+                        - Does the fix address the actual root cause?
+                        │
+                        └── Returns float 0.0–1.0
+
+Final Score = 0.85 × keyword_score + 0.15 × judge_score
+```
+
+
+The judge uses the same model running inference (configurable via `MODEL_NAME`). It's deliberately lightweight — a single-turn evaluation with a structured prompt — so it doesn't dominate runtime.
+
+---
 
 ## Action Space
 
@@ -52,46 +210,17 @@ Each step returns a `WhyDidItFailObservation` with:
 - `reward` — step-level reward
 - `done` — episode termination flag
 
-## Reward Function
-
-Rewards are provided throughout the episode, not just at completion:
-
-| Component | Weight | Signal |
-|---|---|---|
-| Diagnosis score | 0.70 | Correct failure mode label (exact match = 0.40 base, fuzzy = 0.10 per category keyword) |
-| Evidence score | 0.15 | Inspected required sources; penalizes missing or irrelevant inspections |
-| Efficiency score | 0.15 | Minimal steps to diagnosis; decays for wasted actions |
-| Fix bonus | +0.15 | Keyword match on suggested fix (capped at 1.0 total) |
-
-Step-level rewards during inspection: +0.10 / +0.07 / +0.05 for each required source discovered (decaying). Re-inspection: −0.05. Irrelevant inspection: −0.03.
-
-## Tasks
-
-### Task 1 — Easy (`task_easy`)
-- **Objective**: Identify the failure mode from training logs only
-- **Required sources**: `logs`
-- **Max steps**: 10
-- **Failure modes**: exploding gradients, learning rate too high, overfitting, underfitting
-
-### Task 2 — Medium (`task_medium`)
-- **Objective**: Identify the failure mode from logs + hyperparameter config
-- **Required sources**: `logs`, `config`
-- **Max steps**: 15
-- **Failure modes**: learning rate too low, missing regularization, batch size too small, optimizer misconfiguration
-
-### Task 3 — Hard (`task_hard`)
-- **Objective**: Identify failure mode from logs + config + gradients, and provide a concrete fix
-- **Required sources**: `logs`, `config`, `gradients`
-- **Max steps**: 20
-- **Failure modes**: vanishing gradients, dying relu, bad weight initialization, lr scheduler misconfiguration
+---
 
 ## Baseline Performance (Qwen/Qwen2.5-72B-Instruct)
 
 | Task | Avg Score | Pass Rate |
 |---|---|---|
-| Easy | ~0.85 | ~80% |
-| Medium | ~0.92 | ~100% |
-| Hard | ~0.93 | ~100% |
+| Easy | 0.964 | 100% |
+| Medium | 0.952 | 100% |
+| Hard | 0.979 | 100% |
+
+---
 
 ## Setup
 
@@ -99,7 +228,7 @@ Step-level rewards during inspection: +0.10 / +0.07 / +0.05 for each required so
 
 | Variable | Default | Required |
 |---|---|---|
-| `HF_TOKEN` | — | Yes (mandatory) |
+| `HF_TOKEN` | — | Yes |
 | `API_BASE_URL` | `https://router.huggingface.co/v1` | No |
 | `MODEL_NAME` | `Qwen/Qwen2.5-72B-Instruct` | No |
 | `SERVER_URL` | `http://localhost:8000` | No |
@@ -124,6 +253,24 @@ docker build -t whydiditfail-env:latest .
 docker run -p 8000:8000 whydiditfail-env:latest
 ```
 
+### Local Agent (No API Key Needed)
+
+Want to test without calling an external LLM? The local agent uses a rule-based heuristic that mimics the expected agent behavior — useful for smoke testing the environment and grader logic.
+
+```bash
+# Run with local agent (no HF_TOKEN needed)
+USE_LOCAL=true uv run python inference.py
+```
+
+The local agent (`local_agent.py`) follows a fixed inspection strategy:
+1. Always inspect logs first
+2. Inspects config and gradients if the task requires them
+3. Submits a deterministic diagnosis based on simple pattern matching
+
+It won't score like a frontier model, but it will complete episodes cleanly and let you verify the full pipeline — server, grader, judge, stdout format — without any API calls.
+
+---
+
 ## Project Structure
 
 ```
@@ -140,6 +287,8 @@ WhyDidItFail/
     ├── graders.py                  # Programmatic grader
     └── llm_judge.py                # LLM-based reasoning quality judge
 ```
+
+---
 
 ## OpenEnv Spec Compliance
 
