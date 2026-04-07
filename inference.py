@@ -8,8 +8,8 @@ MANDATORY environment variables:
 
 TASKS
     Task 1 (easy)   — identify failure mode from logs only
-    Task 2 (medium) — identify failure mode from logs + config      [coming soon]
-    Task 3 (hard)   — identify failure mode + provide correct fix   [coming soon]
+    Task 2 (medium) — identify failure mode from logs + config
+    Task 3 (hard)   — identify failure mode + provide correct fix
 
 STDOUT FORMAT
     [START]   task=<task_name> scenarios=<n> model=<model_name>
