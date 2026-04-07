@@ -57,19 +57,21 @@ def _diagnosis_score(diagnosis: str, scenario: dict) -> float:
     d = diagnosis.strip().lower()
 
     score = 0.0
+    exact_matched = False
 
     # exact keyword matches (strong signal)
     for kw in EXACT_KEYWORDS.get(correct, [correct]):
         if kw in d:
             score += 0.4
+            exact_matched = True
 
     # category matches (weaker signal)
     for kw in CATEGORY_KEYWORDS.get(correct, []):
         if kw in d:
             score += 0.1
 
-    # penalize vague answers
-    if len(d.split()) < 3:
+    # penalize vague answers only when no exact match found
+    if not exact_matched and len(d.split()) < 3:
         score -= 0.1
 
     return max(0.0, min(0.7, score))
