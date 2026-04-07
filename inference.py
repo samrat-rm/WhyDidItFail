@@ -292,11 +292,11 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     for key in scenario_keys:
         res, env = await run_episode(env, client, key, task_name, effective_model)
         results.append(res)
-        print(f"  [RESULT]  scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", file=sys.stderr, flush=True)
+        print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_rate = sum(1 for r in results if r["success"]) / len(results)
-    print(f"  [SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", file=sys.stderr, flush=True)
+    print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
     return [r["score"] for r in results]
 
 
@@ -313,6 +313,7 @@ async def main() -> None:
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
         overall = sum(scores) / len(scores) if scores else 0.0
         print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
+        print(f"[END] score={overall:.3f}", flush=True)
     finally:
         try:
             await env.close()
