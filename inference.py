@@ -225,7 +225,7 @@ async def run_episode(
             rewards.append(reward)
             data_seen = json.dumps(obs.visible_data) if obs.visible_data else "{}"
             history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
-            print(f"[STEP] step={step} action={act_str} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
+            print(f"[STEP] step={step} action={action.action_type} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
             if done:
                 break
@@ -254,7 +254,8 @@ async def run_episode(
 
     finally:
         steps_taken = len(rewards)
-        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={score:.2f}", flush=True)
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
+        print(f"[END] success={str(success).lower()} steps={steps_taken} score={score:.2f} rewards={rewards_str}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
