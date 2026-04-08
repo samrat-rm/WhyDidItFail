@@ -11,7 +11,8 @@ tags:
   - openenv
 ---
 
-![WhyDidITFail_meme](Wdif.png)
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/5ea68b2e-0005-4aab-93db-6206ef29ad91" />
+
 
 # 🔬 WhyDidItFail — ML Training Failure Diagnosis Environment
 
