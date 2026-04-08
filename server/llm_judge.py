@@ -3,16 +3,16 @@ LLM Judge — reasoning quality scorer for WhyDidItFail.
 
 Called from inference.py after submit_diagnosis.
 Uses the same OpenAI-compatible client and model as the agent.
-Returns a normalized score in [0.0, 1.0] representing reasoning quality.
-Returns 0.0 silently if reasoning is absent or the call fails.
+Returns a normalized score in [0.10, 0.90] representing reasoning quality.
+Returns None silently if reasoning is absent or the call fails.
 
-Scoring criteria (0–5 each, total 0–15 → normalized to 0.0–1.0):
+Scoring criteria (0–5 each, total 0–15 → normalized to 0.10–0.90):
   evidence_grounding  — does the reasoning cite specific observed values?
   causal_chain        — does it connect evidence to the failure mode logically?
   fix_rationale       — is the fix justified by the evidence?
 
 Final score in inference.py:
-  total = 0.85 * keyword_score + 0.15 * judge_score  → always in [0.0, 1.0]
+  total = 0.85 * keyword_score + 0.15 * judge_score  → always in [0.10, 0.90]
 """
 
 import json
@@ -90,8 +90,8 @@ def judge(
             + data.get("causal_chain", 0)
             + data.get("fix_rationale", 0)
         )
-        # normalize: raw 0–15 → 0.01–0.99 (never exact 0 or 1)
-        return round(max(0.01, min(0.99, raw / 15)), 2)
+        # normalize: raw 0–15 → 0.10–0.90 (never below 0.10 or above 0.90)
+        return round(max(0.10, min(0.90, raw / 15)), 2)
 
     except Exception as exc:
         print(f"  [JUDGE] failed: {exc}", flush=True)

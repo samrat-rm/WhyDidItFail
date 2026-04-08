@@ -6,7 +6,7 @@ grade() is the single entry point. It scores the full episode trajectory:
   diagnosis_score  (0.00 – 0.70)  was the diagnosis correct?
   evidence_score   (0.00 – 0.15)  did the agent inspect the right sources?
   efficiency_score (0.00 – 0.15)  did the agent act without waste?
-  fix_bonus        (0.00 – 0.15)  did the agent suggest a valid fix? (bonus, capped at 0.99)
+  fix_bonus        (0.00 – 0.15)  did the agent suggest a valid fix? (bonus, capped at 0.90)
 
 Step-level partial rewards are returned by the environment's step() on every action,
 giving the agent a signal over the full trajectory before the episode ends.
@@ -197,7 +197,7 @@ def grade(
     Single unified grade function. Scores every scenario identically.
 
     Total score = diagnosis_score + evidence_score + efficiency_score + fix_bonus
-                  clamped to [0.01, 0.99].
+                  clamped to [0.10, 0.90].
 
     Max achievable without fix:  0.70 + 0.15 + 0.15       = 1.00
     Max achievable with fix:     0.70 + 0.15 + 0.15 + 0.15 = 1.00  (capped)
@@ -210,7 +210,7 @@ def grade(
     max_steps        = len(required) * 3 + 2      # hard ceiling; exceeding it = total failure
 
     if steps_taken > max_steps:
-        return 0.01
+        return 0.10
 
     d_score  = _diagnosis_score(diagnosis, scenario)
     ed_penalty = _evidence_diagnosis_penalty(diagnosis, scenario, inspection_order)
@@ -221,4 +221,4 @@ def grade(
 
     total = d_score + ed_penalty + e_score + f_score + b_score + o_bonus
 
-    return round(max(0.01, min(0.99, total)), 2)
+    return round(max(0.10, min(0.90, total)), 2)

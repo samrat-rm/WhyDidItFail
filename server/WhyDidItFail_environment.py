@@ -56,7 +56,7 @@ class WhyDidItFailEnvironment(Environment):
             visible_data={"hint": "Start by inspecting the training logs."},
             available_actions=["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"],
             steps_taken=0,
-            reward=0.01,
+            reward=0.10,
             done=False,
             feedback="Investigation started.",
         )
@@ -67,18 +67,18 @@ class WhyDidItFailEnvironment(Environment):
 
         self._state.step_count += 1
 
-        # Hard step limit — terminate immediately, grade() will return 0.01.
+        # Hard step limit — terminate immediately, grade() will return 0.10.
         if self._state.step_count > self.max_steps and action.action_type != "submit_diagnosis":
             return WhyDidItFailObservation(
                 task_description="Step limit reached. Episode terminated.",
                 visible_data={},
                 available_actions=[],
                 steps_taken=self._state.step_count,
-                reward=0.01,
+                reward=0.10,
                 done=True,
                 feedback=(
                     f"Step limit ({self.max_steps}) reached without a diagnosis. "
-                    f"Score: 0.01. Actual failure: '{self.scenario['correct_diagnosis']}'."
+                    f"Score: 0.10. Actual failure: '{self.scenario['correct_diagnosis']}'."
                 ),
             )
         required: list[str] = self.scenario.get("required_sources", ["logs"])
@@ -143,30 +143,32 @@ class WhyDidItFailEnvironment(Environment):
                 visible_data={},
                 available_actions=["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"],
                 steps_taken=self._state.step_count,
-                reward=-0.05,
+                reward=0.10,
                 done=False,
-                feedback=f"Unknown action '{action.action_type}'. No reward.",
+                feedback=f"Unknown action '{action.action_type}'. Minimum reward.",
             )
 
     # Rewards decay as more required sources are discovered — first clue is worth most.
-    _REQUIRED_STEP_REWARDS = [0.10, 0.07, 0.05]
+    # All values are in [0.10, 0.90] — no negative rewards.
+    _REQUIRED_STEP_REWARDS = [0.50, 0.30, 0.15]
 
     def _inspect_reward(self, source: str, required: list[str]) -> float:
         """Return step reward for an inspect action.
 
-        Required sources:   progressive — +0.10 / +0.07 / +0.05 for 1st/2nd/3rd discovery.
-        Irrelevant sources: -0.03 (mild; some exploration is acceptable).
-        Re-inspection:      -0.05 (waste).
+        Required sources:   progressive — 0.50 / 0.30 / 0.15 for 1st/2nd/3rd discovery.
+        Irrelevant sources: 0.10 (minimum; mild penalty via contrast with required rewards).
+        Re-inspection:      0.10 (minimum; waste with no new information).
+        All values are strictly in [0.10, 0.90].
         """
         if source in self.inspection_order:
-            return -0.05   # redundant inspection
+            return 0.10   # redundant inspection — minimum reward
 
         if source in required:
             n_found = sum(1 for s in self.inspection_order if s in required)
             idx = min(n_found, len(self._REQUIRED_STEP_REWARDS) - 1)
             return self._REQUIRED_STEP_REWARDS[idx]
 
-        return -0.03       # irrelevant source
+        return 0.10       # irrelevant source — minimum reward
 
     def _inspect_feedback(self, source: str, required: list[str], reward: float) -> str:
         label = {"logs": "training logs", "config": "hyperparameter config", "gradients": "gradient statistics"}[source]

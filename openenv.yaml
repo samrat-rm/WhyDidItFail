@@ -25,17 +25,17 @@ tasks:
         {response}
 
         You MUST reply with exactly one of these four numbers and nothing else:
-        0.95
-        0.70
+        0.85
+        0.65
         0.30
-        0.05
+        0.15
 
         Rules:
-        - 0.95: Correct failure mode with reasoning that cites specific numeric values from the logs
-        - 0.70: Correct failure mode but reasoning is vague or missing specific numbers
+        - 0.85: Correct failure mode with reasoning that cites specific numeric values from the logs
+        - 0.65: Correct failure mode but reasoning is vague or missing specific numbers
         - 0.30: Wrong label but description matches a related concept
-        - 0.05: Wrong failure mode, no diagnosis submitted, or empty response
-        - If in doubt, return 0.05. NEVER return 0, 1, 0.0, 1.0, or any value not in the list above.
+        - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
+        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].
 
   - id: task_medium
     difficulty: medium
@@ -56,17 +56,17 @@ tasks:
         {response}
 
         You MUST reply with exactly one of these four numbers and nothing else:
-        0.95
-        0.70
+        0.85
+        0.65
         0.30
-        0.05
+        0.15
 
         Rules:
-        - 0.95: Correct failure mode with reasoning citing both log values AND config parameters
-        - 0.70: Correct failure mode but reasoning only references logs or config, not both
+        - 0.85: Correct failure mode with reasoning citing both log values AND config parameters
+        - 0.65: Correct failure mode but reasoning only references logs or config, not both
         - 0.30: Wrong label but description matches a related concept
-        - 0.05: Wrong failure mode, no diagnosis submitted, or empty response
-        - If in doubt, return 0.05. NEVER return 0, 1, 0.0, 1.0, or any value not in the list above.
+        - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
+        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].
 
   - id: task_hard
     difficulty: hard
@@ -88,16 +88,16 @@ tasks:
         {response}
 
         You MUST reply with exactly one of these five numbers and nothing else:
-        0.95
-        0.80
+        0.85
+        0.75
         0.50
         0.20
-        0.05
+        0.15
 
         Rules:
-        - 0.95: Correct failure mode AND a specific actionable fix addressing the root cause
-        - 0.80: Correct failure mode with a reasonable fix that lacks specifics
+        - 0.85: Correct failure mode AND a specific actionable fix addressing the root cause
+        - 0.75: Correct failure mode with a reasonable fix that lacks specifics
         - 0.50: Correct failure mode but fix is vague, wrong, or missing
         - 0.20: Wrong failure mode but fix is incidentally relevant
-        - 0.05: Wrong failure mode, no useful fix, no diagnosis submitted, or empty response
-        - If in doubt, return 0.05. NEVER return 0, 1, 0.0, 1.0, or any value not in the list above.
+        - 0.15: Wrong failure mode, no useful fix, no diagnosis submitted, or empty response
+        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].

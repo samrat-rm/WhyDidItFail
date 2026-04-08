@@ -13,7 +13,7 @@ Stdout format:
     [END]     success=<bool> steps=<n> reward=<float>             (per episode)
     [END]     score=<float>                                        (final overall)
 
-All reward and score values are strictly in (0.01, 0.99).
+All reward and score values are strictly in (0.10, 0.90).
 """
 
 import asyncio
@@ -197,7 +197,7 @@ async def run_episode(
     rewards: List[float] = []
     inspection_order: List[str] = []
     submit_action: WhyDidItFailAction | None = None
-    score    = 0.01
+    score    = 0.10
     success  = False
 
     try:
@@ -209,10 +209,10 @@ async def run_episode(
             try:
                 result = await env.step(action)
             except ConnectionClosedError as e:
-                print(f"[STEP] step={step} action={action.action_type} reward=0.01 done=true error={e}", flush=True)
+                print(f"[STEP] step={step} action={action.action_type} reward=0.10 done=true error={e}", flush=True)
                 break
             obs    = result.observation
-            reward = round(max(0.01, min(0.99, result.reward or 0.01)), 2)
+            reward = round(max(0.10, min(0.90, result.reward or 0.10)), 2)
             done   = result.done
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
@@ -231,7 +231,7 @@ async def run_episode(
                 break
 
         # WebSocket is closed — safe to call the judge now
-        keyword_score = max(0.01, min(0.99, rewards[-1])) if rewards else 0.01
+        keyword_score = max(0.10, min(0.90, rewards[-1])) if rewards else 0.10
         judge_score: float | None = None
         if submit_action is not None:
             judge_score = llm_judge(
@@ -244,17 +244,17 @@ async def run_episode(
                 inspection_order=inspection_order,
             )
         if judge_score is None:
-            score = round(max(0.01, min(0.99, keyword_score)), 2)
+            score = round(max(0.10, min(0.90, keyword_score)), 2)
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.2f} reasoning=n/a total={score:.2f}", file=sys.stderr, flush=True)
         else:
-            score = round(max(0.01, min(0.99, 0.85 * keyword_score + 0.15 * judge_score)), 2)
+            score = round(max(0.10, min(0.90, 0.85 * keyword_score + 0.15 * judge_score)), 2)
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
 
     finally:
         steps_taken = len(rewards)
-        final_reward = f"{rewards[-1]:.2f}" if rewards else "0.01"
+        final_reward = f"{rewards[-1]:.2f}" if rewards else "0.10"
         print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_reward}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
@@ -280,7 +280,7 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
         results.append(res)
 
     scores = [r["score"] for r in results]
-    task_score = round(max(0.01, min(0.99, sum(scores) / len(scores))), 2) if scores else 0.01
+    task_score = round(max(0.10, min(0.90, sum(scores) / len(scores))), 2) if scores else 0.10
     print(f"[END] score={task_score}", flush=True)
     return scores
 

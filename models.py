@@ -42,8 +42,8 @@ class WhyDidItFailObservation(Observation):
         "Which action_types are valid on this step.")
     steps_taken: int = Field(..., description=
         "Number of actions taken so far in this episode.")
-    reward: float = Field(default=0.01, description=    # type: ignore[override]
-        "Score for the current step. 0.99 = max.")  
+    reward: float = Field(default=0.10, description=    # type: ignore[override]
+        "Score for the current step. 0.90 = max.")
     done: bool = Field(default=False, description=
         "True when the episode has ended.")
     feedback: str = Field(..., description=
