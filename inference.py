@@ -255,7 +255,7 @@ async def run_episode(
     finally:
         steps_taken = len(rewards)
         final_reward = f"{rewards[-1]:.2f}" if rewards else "0.01"
-        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={final_reward}", flush=True)
+        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_reward}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
@@ -278,9 +278,11 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     for key in scenario_keys:
         res, env = await run_episode(env, client, key, task_name, effective_model)
         results.append(res)
-        # print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
-    return [r["score"] for r in results]
+    scores = [r["score"] for r in results]
+    task_score = round(max(0.01, min(0.99, sum(scores) / len(scores))), 2) if scores else 0.01
+    print(f"[END] score={task_score}", flush=True)
+    return scores
 
 
 async def main() -> None:
