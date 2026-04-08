@@ -159,7 +159,7 @@ def _get_action(client: OpenAI, step: int, obs_summary: str, history: List[str])
         filtered = {k: v for k, v in data.items() if k in WhyDidItFailAction.model_fields}
         return WhyDidItFailAction(**filtered)
     except Exception as exc:
-        print(f"  [DEBUG] parse error: {exc}", file=sys.stderr, flush=True)
+        # print(f"  [DEBUG] parse error: {exc}", file=sys.stderr, flush=True)
         if step <= 2:
             return WhyDidItFailAction(action_type="inspect_logs", diagnosis=None, suggested_fix=None,reasoning=None)
         return WhyDidItFailAction(action_type="submit_diagnosis", diagnosis="unknown", suggested_fix=None,reasoning=None)
@@ -184,7 +184,7 @@ async def run_episode(
     try:
         result = await env.reset(scenario_key=scenario_key)
     except ConnectionClosedError:
-        print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", file=sys.stderr, flush=True)
+        # print(f"  [WARN]    scenario={scenario_key} reconnecting WebSocket...", file=sys.stderr, flush=True)
         env = await _make_env()
         result = await env.reset(scenario_key=scenario_key)
 
@@ -245,10 +245,10 @@ async def run_episode(
             )
         if judge_score is None:
             score = round(keyword_score, 4)
-            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=sys.stderr, flush=True)
+            # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=sys.stderr, flush=True)
         else:
             score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
-            print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
+            # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
 
@@ -262,7 +262,7 @@ async def run_episode(
 
 async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEnv, client: OpenAI) -> List[float]:
     if not scenario_keys:
-        print(f"  [INFO]    task={task_name} — no scenarios defined yet", flush=True)
+        # print(f"  [INFO]    task={task_name} — no scenarios defined yet", flush=True)
         return []
 
     if USE_LOCAL:
@@ -278,11 +278,11 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
     for key in scenario_keys:
         res, env = await run_episode(env, client, key, task_name, effective_model)
         results.append(res)
-        print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
+        # print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
     avg_score = sum(r["score"] for r in results) / len(results)
     pass_rate = sum(1 for r in results if r["success"]) / len(results)
-    print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
+    # print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
     return [r["score"] for r in results]
 
 
@@ -296,14 +296,14 @@ async def main() -> None:
         scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
         overall = sum(scores) / len(scores) if scores else 0.0
-        print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
-        print(f"[END] score={overall:.3f}", flush=True)
+        # print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
+        # print(f"[END] score={overall:.3f}", flush=True)
     finally:
         try:
             await env.close()
         except Exception as e:
-            print(f"  [DEBUG]   env.close() error: {e}", file=sys.stderr, flush=True)
-
+            # print(f"  [DEBUG]   env.close() error: {e}", file=sys.stderr, flush=True)
+            pass
 
 if __name__ == "__main__":
     asyncio.run(main())
