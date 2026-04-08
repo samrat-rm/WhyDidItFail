@@ -7,16 +7,18 @@ Environment variables:
     MODEL_NAME   default: Qwen/Qwen2.5-72B-Instruct
     SERVER_URL   default: http://localhost:8000
 
-Stdout format (per episode):
-    [START]   task=<name> env=whydiditfail model=<model>
-    [STEP]    step=<n> action=<json> reward=<0.01> done=<bool> error=<null|msg>
-    [END]     success=<bool> steps=<n> rewards=<csv>
+Stdout format:
+    [START]   task=<name> env=whydiditfail model=<model>          (per episode)
+    [STEP]    step=<n> action=<action_type> reward=<float> done=<bool> error=<null|msg>
+    [END]     success=<bool> steps=<n> reward=<float>             (per episode)
+    [END]     score=<float>                                        (final overall)
+
+All reward and score values are strictly in (0.01, 0.99).
 """
 
 import asyncio
 import json
 import os
-import sys
 import textwrap
 from typing import List
 
