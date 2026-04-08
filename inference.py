@@ -46,9 +46,9 @@ TEMPERATURE      = 0.3
 MAX_TOKENS       = 256
 SUCCESS_THRESHOLD = 0.5
 
-EASY_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "easy"][:1]
-MEDIUM_SCENARIOS = [k for k, v in SCENARIOS.items() if v["difficulty"] == "medium"][:1]
-HARD_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "hard"][:1]
+EASY_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "easy"][:2]
+MEDIUM_SCENARIOS = [k for k, v in SCENARIOS.items() if v["difficulty"] == "medium"][:2]
+HARD_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "hard"][:2]
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are a machine learning engineer diagnosing a failed training run.
@@ -251,6 +251,9 @@ async def run_episode(
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
+        # Replace raw terminal reward with composite score (85% keyword + 15% judge)
+        if rewards:
+            rewards[-1] = score
 
     finally:
         steps_taken = len(rewards)
