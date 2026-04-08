@@ -87,7 +87,11 @@ def get_action(step: int, prompt: str) -> WhyDidItFailAction:
     except Exception as exc:
         print(f"  [LOCAL] parse failed (step {step}): {exc} | raw: {text!r}", flush=True)
         # Step-based progression: avoid re-inspecting the same source.
+        from typing import cast, Literal
         _fallback = ["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"]
-        action_type = _fallback[min(step - 1, len(_fallback) - 1)]
+        action_type = cast(
+            Literal["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"],
+            _fallback[min(step - 1, len(_fallback) - 1)],
+        )
         diagnosis = "unknown" if action_type == "submit_diagnosis" else None
-        return WhyDidItFailAction(action_type=action_type, diagnosis=diagnosis, suggested_fix=None,reasoning=None)
+        return WhyDidItFailAction(action_type=action_type, diagnosis=diagnosis, suggested_fix=None, reasoning=None)
