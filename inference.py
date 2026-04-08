@@ -254,8 +254,8 @@ async def run_episode(
 
     finally:
         steps_taken = len(rewards)
-        final_reward = f"{rewards[-1]:.2f}" if rewards else "0.10"
-        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_reward}", flush=True)
+        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.10"
+        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
