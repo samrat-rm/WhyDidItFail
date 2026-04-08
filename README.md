@@ -308,6 +308,18 @@ Stdout will stream `[START]` / `[STEP]` / `[END]` lines per episode. Internal lo
 
 ---
 
+### 6. Verify environment state (optional)
+
+To confirm the state endpoint is working correctly — episode tracking, inspection order, required sources:
+
+```bash
+uv run python test_state.py
+```
+
+Runs a single hard episode and calls `state()` after every action. Prints `OK` or `FAIL` per checkpoint.
+
+---
+
 ### Local Agent — No API Key Required
 
 To smoke test the full pipeline without calling an external LLM, you can run inference with a local model via [Ollama](https://ollama.com/).
@@ -346,8 +358,9 @@ USE_LOCAL=true uv run python inference.py
 ```
 WhyDidItFail/
 ├── inference.py                    # Baseline inference script
+├── test_state.py                   # State endpoint verification script
 ├── client.py                       # WhyDidItFailEnv client (WebSocket)
-├── models.py                       # Action and Observation Pydantic models
+├── models.py                       # Action, Observation, and State Pydantic models
 ├── openenv.yaml                    # OpenEnv manifest
 ├── Dockerfile                      # Container image
 └── server/
