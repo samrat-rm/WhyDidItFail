@@ -251,14 +251,10 @@ async def run_episode(
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
-        # Replace raw terminal reward with composite score (85% keyword + 15% judge)
-        if rewards:
-            rewards[-1] = score
 
     finally:
         steps_taken = len(rewards)
-        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
-        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
+        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={score:.2f}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
