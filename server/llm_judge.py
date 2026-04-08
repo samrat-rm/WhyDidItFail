@@ -91,7 +91,7 @@ def judge(
             + data.get("fix_rationale", 0)
         )
         # normalize: raw 0–15 → 0.0–1.0
-        return round(max(0, min(15, raw)) / 15, 4)
+        return round(max(0, min(15, raw)) / 15, 2)
 
     except Exception as exc:
         print(f"  [JUDGE] failed: {exc}", flush=True)

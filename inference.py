@@ -195,7 +195,7 @@ async def run_episode(
     rewards: List[float] = []
     inspection_order: List[str] = []
     submit_action: WhyDidItFailAction | None = None
-    score    = 0.0
+    score    = 0.01
     success  = False
 
     try:
@@ -229,7 +229,7 @@ async def run_episode(
                 break
 
         # WebSocket is closed — safe to call the judge now
-        keyword_score = rewards[-1] if rewards else 0.0
+        keyword_score = rewards[-1] if rewards else 0.01
         judge_score: float | None = None
         if submit_action is not None:
             judge_score = llm_judge(
@@ -242,10 +242,10 @@ async def run_episode(
                 inspection_order=inspection_order,
             )
         if judge_score is None:
-            score = round(keyword_score, 4)
-            # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning=n/a total={score:.3f}", file=sys.stderr, flush=True)
+            score = round(keyword_score, 2)
+            # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.2f} reasoning=n/a total={score:.2f}", file=sys.stderr, flush=True)
         else:
-            score = round(0.85 * keyword_score + 0.15 * judge_score, 4)
+            score = round(0.85 * keyword_score + 0.15 * judge_score, 2)
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
@@ -253,7 +253,7 @@ async def run_episode(
     finally:
         steps_taken = len(rewards)
         final_score = round(max(0.01, min(0.99, sum(rewards))), 2) if rewards else 0.01
-        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_score}", flush=True)
+        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_score:.2f}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
@@ -293,7 +293,7 @@ async def main() -> None:
         scores += await run_task("task_easy",   EASY_SCENARIOS,   env, client)
         scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
-        overall = sum(scores) / len(scores) if scores else 0.0
+        overall = round(sum(scores) / len(scores), 2) if scores else 0.01
         # print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
         # print(f"[END] score={overall:.3f}", flush=True)
     finally:

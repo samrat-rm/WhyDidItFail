@@ -50,7 +50,7 @@ class WhyDidItFailEnv(EnvClient[WhyDidItFailAction, WhyDidItFailObservation, Why
             visible_data=obs_data.get("visible_data", {}),
             available_actions=obs_data.get("available_actions", []),
             steps_taken=obs_data.get("steps_taken", 0),
-            reward=obs_data.get("reward", 0.0),
+            reward=obs_data.get("reward", 0.01),
             done=obs_data.get("done", False),
             feedback=obs_data.get("feedback", ""),
         )

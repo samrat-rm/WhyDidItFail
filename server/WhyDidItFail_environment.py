@@ -56,7 +56,7 @@ class WhyDidItFailEnvironment(Environment):
             visible_data={"hint": "Start by inspecting the training logs."},
             available_actions=["inspect_logs", "inspect_config", "inspect_gradients", "submit_diagnosis"],
             steps_taken=0,
-            reward=0.0,
+            reward=0.01,
             done=False,
             feedback="Investigation started.",
         )
@@ -67,18 +67,18 @@ class WhyDidItFailEnvironment(Environment):
 
         self._state.step_count += 1
 
-        # Hard step limit — terminate immediately, grade() will return 0.0.
+        # Hard step limit — terminate immediately, grade() will return 0.01.
         if self._state.step_count > self.max_steps and action.action_type != "submit_diagnosis":
             return WhyDidItFailObservation(
                 task_description="Step limit reached. Episode terminated.",
                 visible_data={},
                 available_actions=[],
                 steps_taken=self._state.step_count,
-                reward=0.0,
+                reward=0.01,
                 done=True,
                 feedback=(
                     f"Step limit ({self.max_steps}) reached without a diagnosis. "
-                    f"Score: 0.00. Actual failure: '{self.scenario['correct_diagnosis']}'."
+                    f"Score: 0.01. Actual failure: '{self.scenario['correct_diagnosis']}'."
                 ),
             )
         required: list[str] = self.scenario.get("required_sources", ["logs"])
