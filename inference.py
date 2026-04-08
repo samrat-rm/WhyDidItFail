@@ -46,9 +46,9 @@ TEMPERATURE      = 0.3
 MAX_TOKENS       = 256
 SUCCESS_THRESHOLD = 0.5
 
-EASY_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "easy"]
-MEDIUM_SCENARIOS = [k for k, v in SCENARIOS.items() if v["difficulty"] == "medium"]
-HARD_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "hard"]
+EASY_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "easy"][:1]
+MEDIUM_SCENARIOS = [k for k, v in SCENARIOS.items() if v["difficulty"] == "medium"][:1]
+HARD_SCENARIOS   = [k for k, v in SCENARIOS.items() if v["difficulty"] == "hard"][:1]
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are a machine learning engineer diagnosing a failed training run.
