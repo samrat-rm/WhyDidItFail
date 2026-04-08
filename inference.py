@@ -254,8 +254,8 @@ async def run_episode(
 
     finally:
         steps_taken = len(rewards)
-        final_score = round(max(0.01, min(0.99, sum(rewards))), 2) if rewards else 0.01
-        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_score:.2f}", flush=True)
+        final_reward = f"{rewards[-1]:.2f}" if rewards else "0.01"
+        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={final_reward}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 
@@ -280,9 +280,6 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
         results.append(res)
         # print(f"[RESULT] scenario={res['scenario_key']} score={res['score']:.3f} steps={res['steps']} success={str(res['success']).lower()}", flush=True)
 
-    avg_score = sum(r["score"] for r in results) / len(results)
-    pass_rate = sum(1 for r in results if r["success"]) / len(results)
-    # print(f"[SUMMARY] task={task_name} avg_score={avg_score:.3f} pass_rate={pass_rate:.2f}", flush=True)
     return [r["score"] for r in results]
 
 
@@ -295,9 +292,7 @@ async def main() -> None:
         scores += await run_task("task_easy",   EASY_SCENARIOS,   env, client)
         scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
-        overall = max(0.01, min(0.99, sum(scores) / len(scores))) if scores else 0.01
-        # print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
-        print(f"[END] score={overall:.3f}", flush=True)
+        pass  # scoring is handled by the yaml grader, not stdout
     finally:
         try:
             await env.close()

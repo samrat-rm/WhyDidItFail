@@ -24,13 +24,14 @@ tasks:
         Agent response:
         {response}
 
-        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
-        - 0.99: Correct failure mode with reasoning that cites specific numeric values from the logs
+        IMPORTANT: You must return a decimal number strictly between 0 and 1. Never return 0, 1, 0.0, or 1.0.
+        Use these exact values:
+        - 0.95: Correct failure mode with reasoning that cites specific numeric values from the logs
         - 0.70: Correct failure mode but reasoning is vague or missing specific numbers
         - 0.30: Wrong label but description matches a related concept
-        - 0.01: Wrong failure mode or no diagnosis submitted
+        - 0.05: Wrong failure mode or no diagnosis submitted
 
-        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.
+        Reply with a single decimal number from the list above. No explanation. No other text.
 
   - id: task_medium
     difficulty: medium
@@ -50,13 +51,14 @@ tasks:
         Agent response:
         {response}
 
-        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
-        - 0.99: Correct failure mode with reasoning citing both log values AND config parameters
+        IMPORTANT: You must return a decimal number strictly between 0 and 1. Never return 0, 1, 0.0, or 1.0.
+        Use these exact values:
+        - 0.95: Correct failure mode with reasoning citing both log values AND config parameters
         - 0.70: Correct failure mode but reasoning only references logs or config, not both
         - 0.30: Wrong label but description matches a related concept
-        - 0.01: Wrong failure mode or no diagnosis submitted
+        - 0.05: Wrong failure mode or no diagnosis submitted
 
-        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.
+        Reply with a single decimal number from the list above. No explanation. No other text.
 
   - id: task_hard
     difficulty: hard
@@ -77,11 +79,12 @@ tasks:
         Agent response:
         {response}
 
-        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
-        - 0.99: Correct failure mode AND a specific actionable fix addressing the root cause
+        IMPORTANT: You must return a decimal number strictly between 0 and 1. Never return 0, 1, 0.0, or 1.0.
+        Use these exact values:
+        - 0.95: Correct failure mode AND a specific actionable fix addressing the root cause
         - 0.80: Correct failure mode with a reasonable fix that lacks specifics
         - 0.50: Correct failure mode but fix is vague, wrong, or missing
         - 0.20: Wrong failure mode but fix is incidentally relevant
-        - 0.01: Wrong failure mode and no useful fix
+        - 0.05: Wrong failure mode and no useful fix
 
-        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.
+        Reply with a single decimal number from the list above. No explanation. No other text.
