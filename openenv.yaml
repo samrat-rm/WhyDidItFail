@@ -11,6 +11,7 @@ tasks:
     max_steps: 10
     grader:
       type: llm
+      default_score: 0.15
       prompt_template: |
         You are evaluating an ML engineer's diagnosis of a failed training run.
         The agent was given training logs only (no config or gradient data) and must identify the failure mode.
@@ -35,13 +36,14 @@ tasks:
         - 0.65: Correct failure mode but reasoning is vague or missing specific numbers
         - 0.30: Wrong label but description matches a related concept
         - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
-        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].
+        - If in doubt, return 0.15. Only return one of the four values listed above.
 
   - id: task_medium
     difficulty: medium
     max_steps: 15
     grader:
       type: llm
+      default_score: 0.15
       prompt_template: |
         You are evaluating an ML engineer's diagnosis of a failed training run.
         The agent was given training logs AND hyperparameter config and must identify the failure mode.
@@ -66,13 +68,14 @@ tasks:
         - 0.65: Correct failure mode but reasoning only references logs or config, not both
         - 0.30: Wrong label but description matches a related concept
         - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
-        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].
+        - If in doubt, return 0.15. Only return one of the four values listed above.
 
   - id: task_hard
     difficulty: hard
     max_steps: 20
     grader:
       type: llm
+      default_score: 0.15
       prompt_template: |
         You are evaluating an ML engineer's diagnosis of a failed training run.
         The agent was given training logs, hyperparameter config, AND gradient norm data.
@@ -100,4 +103,4 @@ tasks:
         - 0.50: Correct failure mode but fix is vague, wrong, or missing
         - 0.20: Wrong failure mode but fix is incidentally relevant
         - 0.15: Wrong failure mode, no useful fix, no diagnosis submitted, or empty response
-        - If in doubt, return 0.15. NEVER return 0, 1, 0.0, 1.0, or any value outside [0.10, 0.90].
+        - If in doubt, return 0.15. Only return one of the five values listed above.

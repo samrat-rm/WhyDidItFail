@@ -212,7 +212,7 @@ async def run_episode(
                 print(f"[STEP] step={step} action={action.action_type} reward=0.10 done=true error={e}", flush=True)
                 break
             obs    = result.observation
-            reward = round(max(0.10, min(0.90, result.reward or 0.10)), 2)
+            reward = round(max(0.10, min(0.90, obs.reward)), 2)
             done   = result.done
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
