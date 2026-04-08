@@ -212,8 +212,6 @@ async def run_episode(
             obs    = result.observation
             reward = result.reward or 0.0
             done   = result.done
-            act_str = action.model_dump_json(exclude_none=True, exclude_defaults=True)
-
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
                 if source not in inspection_order:
@@ -224,7 +222,7 @@ async def run_episode(
 
             rewards.append(reward)
             data_seen = json.dumps(obs.visible_data) if obs.visible_data else "{}"
-            history.append(f"Step {step}: {act_str} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
+            history.append(f"Step {step}: {action.action_type} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
             print(f"[STEP] step={step} action={action.action_type} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
             if done:
