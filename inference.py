@@ -210,7 +210,7 @@ async def run_episode(
                 print(f"[STEP] step={step} action={action.action_type} reward=0.01 done=true error={e}", flush=True)
                 break
             obs    = result.observation
-            reward = round(min(0.99, result.reward or 0.01), 2)
+            reward = round(max(0.01, min(0.99, result.reward or 0.01)), 2)
             done   = result.done
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
@@ -229,7 +229,7 @@ async def run_episode(
                 break
 
         # WebSocket is closed — safe to call the judge now
-        keyword_score = rewards[-1] if rewards else 0.01
+        keyword_score = max(0.01, min(0.99, rewards[-1])) if rewards else 0.01
         judge_score: float | None = None
         if submit_action is not None:
             judge_score = llm_judge(
@@ -242,10 +242,10 @@ async def run_episode(
                 inspection_order=inspection_order,
             )
         if judge_score is None:
-            score = round(keyword_score, 2)
+            score = round(max(0.01, min(0.99, keyword_score)), 2)
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.2f} reasoning=n/a total={score:.2f}", file=sys.stderr, flush=True)
         else:
-            score = round(0.85 * keyword_score + 0.15 * judge_score, 2)
+            score = round(max(0.01, min(0.99, 0.85 * keyword_score + 0.15 * judge_score)), 2)
             # print(f"  [JUDGE]   scenario={scenario_key} keyword={keyword_score:.3f} reasoning={judge_score:.3f} total={score:.3f}", file=sys.stderr, flush=True)
 
         success = score >= SUCCESS_THRESHOLD
