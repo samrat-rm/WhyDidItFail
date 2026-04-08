@@ -37,6 +37,7 @@ tasks:
         - 0.30: Wrong label but description matches a related concept
         - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
         - If in doubt, return 0.15. Only return one of the four values listed above.
+        - CRITICAL: Never return 0, 0.0, 1, or 1.0. These are invalid scores.
 
   - id: task_medium
     difficulty: medium
@@ -69,6 +70,7 @@ tasks:
         - 0.30: Wrong label but description matches a related concept
         - 0.15: Wrong failure mode, no diagnosis submitted, or empty response
         - If in doubt, return 0.15. Only return one of the four values listed above.
+        - CRITICAL: Never return 0, 0.0, 1, or 1.0. These are invalid scores.
 
   - id: task_hard
     difficulty: hard
@@ -104,3 +106,4 @@ tasks:
         - 0.20: Wrong failure mode but fix is incidentally relevant
         - 0.15: Wrong failure mode, no useful fix, no diagnosis submitted, or empty response
         - If in doubt, return 0.15. Only return one of the five values listed above.
+        - CRITICAL: Never return 0, 0.0, 1, or 1.0. These are invalid scores.
