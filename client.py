@@ -10,12 +10,11 @@ from typing import Dict
 
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
-from openenv.core.env_server.types import State
 
-from models import WhyDidItFailAction, WhyDidItFailObservation
+from models import WhyDidItFailAction, WhyDidItFailObservation, WhyDidItFailState
 
 
-class WhyDidItFailEnv(EnvClient[WhyDidItFailAction, WhyDidItFailObservation, State]):
+class WhyDidItFailEnv(EnvClient[WhyDidItFailAction, WhyDidItFailObservation, WhyDidItFailState]):
     """
     Client for the WhyDidItFail Environment.
 
@@ -61,9 +60,14 @@ class WhyDidItFailEnv(EnvClient[WhyDidItFailAction, WhyDidItFailObservation, Sta
             done=payload.get("done", False),
         )
 
-    def _parse_state(self, payload: Dict) -> State:
-        """Parse server response into State."""
-        return State(
+    def _parse_state(self, payload: Dict) -> WhyDidItFailState:
+        """Parse server response into WhyDidItFailState."""
+        return WhyDidItFailState(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
+            scenario_key=payload.get("scenario_key"),
+            difficulty=payload.get("difficulty"),
+            inspection_order=payload.get("inspection_order", []),
+            required_sources=payload.get("required_sources", []),
+            max_steps=payload.get("max_steps", 0),
         )

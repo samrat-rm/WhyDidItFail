@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Any, Dict, Literal
 
-from openenv.core.env_server.types import Action, Observation
+from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field
 
 
@@ -15,6 +15,21 @@ class WhyDidItFailAction(Action):
         "Required when action_type=submit_diagnosis. Exact fix to apply.")
     reasoning: str | None = Field(None, description=
         "Required when action_type=submit_diagnosis. Explain what evidence led to this diagnosis.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata.")
+
+
+class WhyDidItFailState(State):
+    """Full episode state exposed via GET /state and WSStateMessage."""
+    scenario_key: str | None = Field(None, description=
+        "Key of the active scenario (e.g. 'exploding_gradients'). None before reset.")
+    difficulty: str | None = Field(None, description=
+        "Difficulty tier of the active scenario: easy, medium, or hard.")
+    inspection_order: list[str] = Field(default_factory=list, description=
+        "Sources inspected so far this episode, in the order they were first visited.")
+    required_sources: list[str] = Field(default_factory=list, description=
+        "Sources the agent must inspect before submitting a valid diagnosis.")
+    max_steps: int = Field(0, description=
+        "Hard step ceiling for this episode. Exceeding it terminates with score 0.")
 
 
 class WhyDidItFailObservation(Observation):

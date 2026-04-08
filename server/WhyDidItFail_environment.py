@@ -5,7 +5,7 @@ from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-from models import WhyDidItFailAction, WhyDidItFailObservation
+from models import WhyDidItFailAction, WhyDidItFailObservation, WhyDidItFailState
 from server.scenarios import SCENARIOS
 from server.graders import grade
 
@@ -20,8 +20,16 @@ class WhyDidItFailEnvironment(Environment):
         self.max_steps: int = 0
 
     @property
-    def state(self) -> State:
-        return self._state
+    def state(self) -> WhyDidItFailState:
+        return WhyDidItFailState(
+            episode_id=self._state.episode_id,
+            step_count=self._state.step_count,
+            scenario_key=self.scenario.get("failure_mode") if self.scenario else None,
+            difficulty=self.scenario.get("difficulty") if self.scenario else None,
+            inspection_order=list(self.inspection_order),
+            required_sources=list(self.scenario.get("required_sources", [])) if self.scenario else [],
+            max_steps=self.max_steps,
+        )
 
     def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, **kwargs: Any) -> WhyDidItFailObservation:
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
