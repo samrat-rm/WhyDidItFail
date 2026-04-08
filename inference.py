@@ -111,6 +111,8 @@ SYSTEM_PROMPT = textwrap.dedent("""
     - Never inspect the same source twice.
 """).strip()
 
+numbers = []
+
 
 def _user_prompt(step: int, obs_summary: str, history: List[str]) -> str:
     history_block = "\n".join(history[-4:]) if history else "None"
@@ -212,7 +214,7 @@ async def run_episode(
                 print(f"[STEP] step={step} action={action.action_type} reward=0.10 done=true error={e}", flush=True)
                 break
             obs    = result.observation
-            reward = round(max(0.10, min(0.90, obs.reward)), 2)
+            reward = round(max(0.10, min(0.90, result.reward or 0.10)), 2)
             done   = result.done
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
@@ -225,6 +227,7 @@ async def run_episode(
             rewards.append(reward)
             data_seen = json.dumps(obs.visible_data) if obs.visible_data else "{}"
             history.append(f"Step {step}: {action.action_type} → reward={reward:.2f} | {obs.feedback}\n  Data: {data_seen}")
+            numbers.append(f"{reward:.2f}")
             print(f"[STEP] step={step} action={action.action_type} reward={reward:.2f} done={str(done).lower()} error=null", flush=True)
 
             if done:
@@ -255,6 +258,7 @@ async def run_episode(
     finally:
         steps_taken = len(rewards)
         rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.10"
+        numbers.append(f"{rewards_str}")
         print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
@@ -281,7 +285,8 @@ async def run_task(task_name: str, scenario_keys: List[str], env: WhyDidItFailEn
 
     scores = [r["score"] for r in results]
     task_score = round(max(0.10, min(0.90, sum(scores) / len(scores))), 2) if scores else 0.10
-    print(f"[END] score={task_score}", flush=True)
+    numbers.append(f"{task_score:.2f}")
+    print(f"[END] score={task_score:.2f}", flush=True)
     return scores
 
 
@@ -296,6 +301,7 @@ async def main() -> None:
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
         pass  # scoring is handled by the yaml grader, not stdout
     finally:
+        raise Exception(numbers)
         try:
             await env.close()
         except Exception as e:
