@@ -210,7 +210,7 @@ async def run_episode(
                 print(f"[STEP] step={step} action={action.action_type} reward=0.00 done=true error={e}", flush=True)
                 break
             obs    = result.observation
-            reward = result.reward or 0.0
+            reward = round(min(0.99, result.reward or 0.01), 2)
             done   = result.done
             if action.action_type in ("inspect_logs", "inspect_config", "inspect_gradients"):
                 source = action.action_type.replace("inspect_", "")
@@ -252,8 +252,8 @@ async def run_episode(
 
     finally:
         steps_taken = len(rewards)
-        rewards_str = ",".join(f"{r:.2f}" for r in rewards) if rewards else "0.00"
-        print(f"[END] success={str(success).lower()} steps={steps_taken} rewards={rewards_str}", flush=True)
+        final_score = round(max(0.01, min(0.99, sum(rewards))), 2) if rewards else 0.01
+        print(f"[END] success={str(success).lower()} steps={steps_taken} reward={final_score}", flush=True)
 
     return {"scenario_key": scenario_key, "score": score, "steps": steps_taken, "success": success}, env
 

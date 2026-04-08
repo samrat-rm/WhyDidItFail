@@ -210,7 +210,7 @@ def grade(
     max_steps        = len(required) * 3 + 2      # hard ceiling; exceeding it = total failure
 
     if steps_taken > max_steps:
-        return 0.0
+        return 0.01
 
     d_score  = _diagnosis_score(diagnosis, scenario)
     ed_penalty = _evidence_diagnosis_penalty(diagnosis, scenario, inspection_order)
@@ -221,4 +221,4 @@ def grade(
 
     total = d_score + ed_penalty + e_score + f_score + b_score + o_bonus
 
-    return round(max(0.0, min(1.0, total)), 4)
+    return round(max(0.01, min(0.99, total)), 2)
