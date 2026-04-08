@@ -63,7 +63,7 @@ def judge(
     scenario: dict,
     inspection_order: list[str],
 ) -> float | None:
-    """Score reasoning quality. Returns 0.0–1.0, or None if unavailable/failed.
+    """Score reasoning quality. Returns 0.10–0.90, or None if unavailable/failed.
 
     None signals the caller to skip judge weighting entirely and use the
     keyword score at full weight (1.0) rather than 0.85.

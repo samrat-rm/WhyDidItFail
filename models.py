@@ -29,7 +29,7 @@ class WhyDidItFailState(State):
     required_sources: list[str] = Field(default_factory=list, description=
         "Sources the agent must inspect before submitting a valid diagnosis.")
     max_steps: int = Field(0, description=
-        "Hard step ceiling for this episode. Exceeding it terminates with score 0.")
+        "Hard step ceiling for this episode. Exceeding it terminates with score 0.10.")
 
 
 class WhyDidItFailObservation(Observation):
