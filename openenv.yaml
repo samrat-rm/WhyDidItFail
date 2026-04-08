@@ -24,13 +24,13 @@ tasks:
         Agent response:
         {response}
 
-        Score 0.0 to 1.0:
-        - 1.0: Correct failure mode with reasoning that cites specific numeric values from the logs
-        - 0.7: Correct failure mode but reasoning is vague or missing specific numbers
-        - 0.3: Wrong label but description matches a related concept
-        - 0.0: Wrong failure mode or no diagnosis submitted
+        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
+        - 0.99: Correct failure mode with reasoning that cites specific numeric values from the logs
+        - 0.70: Correct failure mode but reasoning is vague or missing specific numbers
+        - 0.30: Wrong label but description matches a related concept
+        - 0.01: Wrong failure mode or no diagnosis submitted
 
-        Reply with a single float between 0.0 and 1.0. No explanation.
+        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.
 
   - id: task_medium
     difficulty: medium
@@ -50,13 +50,13 @@ tasks:
         Agent response:
         {response}
 
-        Score 0.0 to 1.0:
-        - 1.0: Correct failure mode with reasoning citing both log values AND config parameters
-        - 0.7: Correct failure mode but reasoning only references logs or config, not both
-        - 0.3: Wrong label but description matches a related concept
-        - 0.0: Wrong failure mode or no diagnosis submitted
+        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
+        - 0.99: Correct failure mode with reasoning citing both log values AND config parameters
+        - 0.70: Correct failure mode but reasoning only references logs or config, not both
+        - 0.30: Wrong label but description matches a related concept
+        - 0.01: Wrong failure mode or no diagnosis submitted
 
-        Reply with a single float between 0.0 and 1.0. No explanation.
+        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.
 
   - id: task_hard
     difficulty: hard
@@ -77,11 +77,11 @@ tasks:
         Agent response:
         {response}
 
-        Score 0.0 to 1.0:
-        - 1.0: Correct failure mode AND a specific actionable fix addressing the root cause
-        - 0.8: Correct failure mode with a reasonable fix that lacks specifics
-        - 0.5: Correct failure mode but fix is vague, wrong, or missing
-        - 0.2: Wrong failure mode but fix is incidentally relevant
-        - 0.0: Wrong failure mode and no useful fix
+        Score strictly between 0.0 and 1.0 (exclusive — never return exactly 0.0 or 1.0):
+        - 0.99: Correct failure mode AND a specific actionable fix addressing the root cause
+        - 0.80: Correct failure mode with a reasonable fix that lacks specifics
+        - 0.50: Correct failure mode but fix is vague, wrong, or missing
+        - 0.20: Wrong failure mode but fix is incidentally relevant
+        - 0.01: Wrong failure mode and no useful fix
 
-        Reply with a single float between 0.0 and 1.0. No explanation.
+        Reply with a single float strictly between 0.0 and 1.0 (e.g. 0.99, not 1.0). No explanation.

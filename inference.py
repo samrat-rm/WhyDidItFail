@@ -9,7 +9,7 @@ Environment variables:
 
 Stdout format (per episode):
     [START]   task=<name> env=whydiditfail model=<model>
-    [STEP]    step=<n> action=<json> reward=<0.00> done=<bool> error=<null|msg>
+    [STEP]    step=<n> action=<json> reward=<0.01> done=<bool> error=<null|msg>
     [END]     success=<bool> steps=<n> rewards=<csv>
 """
 
@@ -207,7 +207,7 @@ async def run_episode(
             try:
                 result = await env.step(action)
             except ConnectionClosedError as e:
-                print(f"[STEP] step={step} action={action.action_type} reward=0.00 done=true error={e}", flush=True)
+                print(f"[STEP] step={step} action={action.action_type} reward=0.01 done=true error={e}", flush=True)
                 break
             obs    = result.observation
             reward = round(min(0.99, result.reward or 0.01), 2)
