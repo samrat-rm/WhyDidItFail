@@ -293,9 +293,9 @@ async def main() -> None:
         scores += await run_task("task_easy",   EASY_SCENARIOS,   env, client)
         scores += await run_task("task_medium", MEDIUM_SCENARIOS, env, client)
         scores += await run_task("task_hard",   HARD_SCENARIOS,   env, client)
-        overall = round(sum(scores) / len(scores), 2) if scores else 0.01
+        overall = max(0.01, min(0.99, sum(scores) / len(scores))) if scores else 0.01
         # print(f"  [OVERALL] avg_score={overall:.3f}", file=sys.stderr, flush=True)
-        # print(f"[END] score={overall:.3f}", flush=True)
+        print(f"[END] score={overall:.3f}", flush=True)
     finally:
         try:
             await env.close()
