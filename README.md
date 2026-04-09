@@ -133,6 +133,7 @@ submit_diagnosis received
                                  logs → config → gradients
         
         Total = clamp(sum, 0.0, 1.0)
+        Score = clamp(Total, 0.1, 0.9) # Hackathon requirement
 ```
 
 
