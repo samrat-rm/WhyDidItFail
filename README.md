@@ -27,7 +27,8 @@ This is a real-world OpenEnv environment where an AI agent must **diagnose faile
 
 # How It Works 
 
-<img width="1068" height="586" alt="image" src="https://github.com/user-attachments/assets/3f0172ef-adcb-4207-8f18-0cd255e4202d" />
+<img width="1030" height="491" alt="image" src="https://github.com/user-attachments/assets/3aca0a79-21b0-458a-93e4-7f174dd0cdc5" />
+
 
 ## Episode Lifecycle
 
